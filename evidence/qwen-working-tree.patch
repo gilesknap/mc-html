@@ -1,0 +1,209 @@
+diff --git a/index.html b/index.html
+index 6e57efa..1b9553e 100644
+--- a/index.html
++++ b/index.html
+@@ -218,6 +218,8 @@ fillTile(T.BEDROCK,(x,y)=>{const r=mulberry32(1800+x*16+y);return r()<0.4?[20,20
+ const atlasTexture=new THREE.CanvasTexture(atlasCanvas);
+ atlasTexture.magFilter=THREE.NearestFilter;atlasTexture.minFilter=THREE.NearestFilter;
+ atlasTexture.generateMipmaps=false;
++// Grab atlas pixels ONCE (per-pixel getImageData readback in drawItemIcon was a big HUD cost)
++const atlasData=actx.getImageData(0,0,ATLAS_W,ATLAS_H).data;
+ // UV helper: returns [u0,v0,u1,v1] for tile index
+ function tileUV(t){const tx=TILE*(t%ATLAS_COLS),ty=TILE*Math.floor(t/ATLAS_COLS);const eps=0.01/ATLAS_W;return[tx/ATLAS_W+eps,1-(ty+TILE)/ATLAS_H+eps,(tx+TILE)/ATLAS_W-eps,1-ty/ATLAS_H-eps];}
+ // Face-to-tile mapping: [top,bottom,side] for each block
+@@ -232,7 +234,7 @@ function drawItemIcon(ctx,itemKey,sz){const c=ctx.createImageData(sz,sz);const d
+       else{tile=sideUV;u=((x-sz*0.7)/(sz*0.3))*16/16;v=((y-sz*0.4)/(sz*0.6))*16/16;}
+       const px=Math.min(15,Math.floor(u*16)),py=Math.min(15,Math.floor(v*16));
+       const ax=Math.min(ATLAS_W-1,Math.floor(tile[0]*ATLAS_W+u*16)),ay=Math.min(ATLAS_H-1,Math.floor(tile[1]*ATLAS_H+v*16));
+-      const p=actx.getImageData(ax,ay,1,1).data;d[i]=p[0];d[i+1]=p[1];d[i+2]=p[2];d[i+3]=p[3]||255;}}
++      const pi=(ay*ATLAS_W+ax)*4;d[i]=atlasData[pi];d[i+1]=atlasData[pi+1];d[i+2]=atlasData[pi+2];d[i+3]=atlasData[pi+3]||255;}}
+   else if(isTool){const parts=itemKey.split('_');const tier=parts[0]==='wood'?[170,130,70]:parts[0]==='stone'?[140,140,140]:parts[0]==='iron'?[210,210,220]:[170,130,70];const stick=[120,80,40];
+     for(let y=0;y<sz;y++)for(let x=0;x<sz;x++){const i=(y*sz+x)*4;const cx=sz/2,cy=sz/2;
+       if(itemKey.startsWith('pick')||itemKey.startsWith('axe')||itemKey.startsWith('sword')){const dx=x-cx,dy=y-cy;const ang=itemKey.startsWith('pick')?0.4:0.1;const rx=dx*Math.cos(ang)-dy*Math.sin(ang),ry=dx*Math.sin(ang)+dy*Math.cos(ang);
+@@ -263,7 +265,7 @@ function getBiomeRaw(wx,wz,elev){
+   return 0; // plains
+ }
+ function getBiome(wx,wz){return getBiomeRaw(wx,wz,getTerrainHeight(wx,wz));}
+-function getTerrainHeight(wx,wz){
++function _terrain(wx,wz){
+   const base=noise2d(wx*0.004,wz*0.004,WSEED+100,6,2.1,0.48);
+   const detail=noise2d(wx*0.02,wz*0.02,WSEED+200,4);
+   const mountain=noise2d(wx*0.006,wz*0.006,WSEED+300,5);
+@@ -275,6 +277,17 @@ function getTerrainHeight(wx,wz){
+   if(Math.abs(river)<0.035)h=Math.min(h,SEA_LEVEL-2);
+   return Math.floor(h);
+ }
++// Memoize terrain height (pure fn) — called very often by meshing, lighting, water, spawn
++const terrainCache=new Map();
++function getTerrainHeight(wx,wz){
++  const key=wx+','+wz;
++  let v=terrainCache.get(key);
++  if(v!==undefined)return v;
++  v=_terrain(wx,wz);
++  if(terrainCache.size>120000)terrainCache.clear();
++  terrainCache.set(key,v);
++  return v;
++}
+ // 3D cave noise
+ function isCave(x,y,z){
+   if(y<=1||y>=CHUNK_HEIGHT-4)return false;
+@@ -308,9 +321,9 @@ function getTreeAt(wx,wz){
+   return{h,trunkH,canopyR};
+ }
+ // Main block getter: what block is at world position (wx,wy,wz)
+-function getGeneratedBlock(wx,wy,wz){
++function _genBlock(wx,wy,wz){
+   const h=getTerrainHeight(wx,wz);
+-  const biome=getBiome(wx,wz);
++  const biome=getBiomeRaw(wx,wz,h); // pass height in (was getBiome() which recomputed it)
+   // Bedrock layer
+   if(wy===0)return B.BEDROCK;
+   if(wy<=3){const r=hash3d(wx,wy,wz,WSEED+70000);return r<(wy)*0.3?B.BEDROCK:B.STONE;}
+@@ -339,6 +352,17 @@ function getGeneratedBlock(wx,wy,wz){
+   if(biome===7&&wy===h-1&&hash3d(wx,wy,wz,WSEED+71000)<0.5)return B.SNOW;
+   return B.STONE;
+ }
++// Memoize generated block (pure fn) — kills repeated terrain/biome/cave/ore eval during meshing + rebuild
++const genBlockCache=new Map();
++function getGeneratedBlock(wx,wy,wz){
++  const key=wx+','+wy+','+wz;
++  let v=genBlockCache.get(key);
++  if(v!==undefined)return v;
++  v=_genBlock(wx,wy,wz);
++  if(genBlockCache.size>250000)genBlockCache.clear();
++  genBlockCache.set(key,v);
++  return v;
++}
+ // Final block getter: checks overrides first
+ function getBlock(wx,wy,wz){
+   if(wy<0)return B.BEDROCK;if(wy>=CHUNK_HEIGHT)return B.AIR;
+@@ -534,9 +558,10 @@ function updateChunks(playerX,playerZ){
+   }
+   // Unload distant chunks
+   for(const[key,chunk]of chunks){if(!needed.has(key)){if(chunk.mesh)scene.remove(chunk.mesh);if(chunk.waterMesh)scene.remove(chunk.waterMesh);if(chunk.mesh)chunk.mesh.geometry.dispose();if(chunk.waterMesh)chunk.waterMesh.geometry.dispose();chunks.delete(key);}}
+-  // Process queue: closest first
++  // Process queue: closest first, with an adaptive TIME budget (keeps frame time flat instead of fixed-chunk spikes)
+   chunkQueue.sort((a,b)=>a.dist-b.dist);
+-  let count=0;while(chunkQueue.length>0&&count<MAX_GEN_PER_FRAME){const{chunk}=chunkQueue.shift();queueSet.delete(chunk.cx+','+chunk.cz);if(!chunk.generated){chunk.generate();count++;}}
++  const _t0=performance.now();let count=0;
++  while(chunkQueue.length>0&&count<20&&(performance.now()-_t0)<8){const{chunk}=chunkQueue.shift();queueSet.delete(chunk.cx+','+chunk.cz);if(!chunk.generated){chunk.generate();count++;}}
+ }
+ // Rebuild a chunk and neighbors
+ function rebuildChunk(cx,cz){const key=cx+','+cz;const chunk=chunks.get(key);if(chunk&&chunk.generated)buildChunkMesh(chunk);}
+@@ -584,16 +609,30 @@ function updatePlayer(dt){
+   if(keys['KeyD']||keys['ArrowRight']){mx-=rx;mz-=rz;}
+   const len=Math.sqrt(mx*mx+mz*mz);if(len>0){mx/=len;mz/=len;}
+   player.vx=mx*mspd;player.vz=mz*mspd;
++  const wantMove=(mx!==0||mz!==0); // has horizontal input (for auto-jump)
+   if(inWater||headInWater){player.vy+=GRAVITY*0.25*dt;if(keys['Space'])player.vy=6.5;}
+   else{player.vy+=GRAVITY*dt;if(keys['Space']&&player.onGround){player.vy=JUMP_VEL;player.onGround=false;}}
+-  // Move and collide per axis
+-  let nx=player.x+player.vx*dt;if(collides(nx,player.y,player.z)){nx=player.x;player.vx=0;}
+-  let ny=player.y+player.vy*dt;player.onGround=false;
+-  if(collides(nx,ny,player.z)){if(player.vy<0)player.onGround=true;ny=player.y;player.vy=0;}
+-  let nz=player.z+player.vz*dt;if(collides(nx,ny,nz)){nz=player.z;player.vz=0;}
+-  // Fall damage
+-  if(player.onGround&&player.vy<-12){const fallDmg=Math.floor((-player.vy-8)*1.5);if(fallDmg>0)damagePlayer(fallDmg);}
+-  player.x=nx;player.y=ny;player.z=nz;
++  // Move and collide per axis with AUTO-JUMP over 1-block steps (always on)
++  const wasOnGround=player.onGround;
++  player.onGround=false;
++  let stepped=false,impactVy=0;
++  let nx=player.x+player.vx*dt;
++  if(!collides(nx,player.y,player.z))player.x=nx;
++  else{
++    if(wasOnGround&&wantMove&&!stepped&&!collides(nx,player.y+1,player.z)){player.y+=1;player.x=nx;stepped=true;} // step up
++    player.vx=0;
++  }
++  let ny=player.y+player.vy*dt;
++  if(!collides(player.x,ny,player.z))player.y=ny;
++  else{if(player.vy<0){player.onGround=true;impactVy=player.vy;}player.vy=0;}
++  let nz=player.z+player.vz*dt;
++  if(!collides(player.x,player.y,nz))player.z=nz;
++  else{
++    if(wasOnGround&&wantMove&&!stepped&&!collides(player.x,player.y+1,nz)){player.y+=1;player.z=nz;stepped=true;} // step up
++    player.vz=0;
++  }
++  // Fall damage (impact velocity captured before it is zeroed above)
++  if(player.onGround&&impactVy<-12){const fallDmg=Math.floor((-impactVy-8)*1.5);if(fallDmg>0)damagePlayer(fallDmg);}
+   // Health regen
+   if(player.health<player.maxHealth&&!player.dead){player.regenT=(player.regenT||0)+dt;if(player.regenT>5){player.health=Math.min(player.maxHealth,player.health+1);player.regenT=0;updateHearts();}}
+   // Camera
+@@ -693,7 +732,7 @@ function mineBlock(x,y,z,block){
+   rebuildAround(x,y);
+   spawnBreakParticles(x,y,z,block);
+   playSound('break');
+-  const drop=DROPS[block];if(drop){const n=typeof drop.n==='function'?drop.n():drop.n;spawnItemDrop(x+0.5,y+0.5,z+0.5,drop.item,n);}
++  const drop=DROPS[block];if(drop){const n=typeof drop.n==='function'?drop.n():drop.n;spawnItemDrop(x+0.5,y+0.5,z+0.5,drop.item,n,selectedSlot);}
+ }
+ // Place block
+ function placeBlock(){
+@@ -714,9 +753,9 @@ function placeBlock(){
+   updateHotbar();
+ }
+ // Item drop entities
+-function spawnItemDrop(x,y,z,item,n){
+-  // Try to add to inventory first
+-  if(addToInventory(item,n)){return;} // consumed
++function spawnItemDrop(x,y,z,item,n,prefer){
++  // Try to add to inventory first (prefer = hotbar slot to fill first, e.g. the held slot)
++  if(addToInventory(item,n,prefer)){return;} // consumed
+   const geo=new THREE.BoxGeometry(0.2,0.2,0.2);
+   const mat=new THREE.MeshLambertMaterial({color:0xffffff,emissive:0x333333});
+   const mesh=new THREE.Mesh(geo,mat);mesh.position.set(x,y,z);scene.add(mesh);
+@@ -736,8 +775,15 @@ function updateItemDrops(dt){
+   }
+ }
+ // Inventory helpers
+-function addToInventory(item,n){
++function addToInventory(item,n,prefer){
+   const max=ITEMS[item].max||64;
++  // Preferred slot first (e.g. the selected/held hotbar slot) so mined blocks land in your hand
++  if(prefer!=null&&prefer>=0&&prefer<36){
++    const s=inventory[prefer];
++    if(s&&s.item===item&&s.n<max){const take=Math.min(max-s.n,n);s.n+=take;n-=take;}
++    else if(!s){const take=Math.min(max,n);inventory[prefer]={item,n:take};n-=take;}
++    if(n<=0){updateHotbar();return true;}
++  }
+   for(let i=0;i<36;i++){if(inventory[i]&&inventory[i].item===item&&inventory[i].n<max){const space=max-inventory[i].n;const take=Math.min(space,n);inventory[i].n+=take;n-=take;if(n<=0){updateHotbar();return true;}}}
+   for(let i=0;i<36;i++){if(!inventory[i]){const take=Math.min(max,n);inventory[i]={item,n:take};n-=take;if(n<=0){updateHotbar();return true;}}}
+   return n<=0;
+@@ -1144,18 +1190,27 @@ class Mob{constructor(type,x,y,z){this.type=type;this.x=x;this.y=y;this.z=z;this
+       // Flee
+       if(this.fleeT>0){this.fleeT-=dt;this.vx=-dx/dist*def.spd*2;this.vz=-dz/dist*def.spd*2;}
+     }
+-    // Move + collide
+-    let nx=this.x+this.vx*dt,nz=this.z+this.vz*dt;
+-    if(!collidesMob(nx,this.y,nz)){this.x=nx;this.z=nz;}
+-    let ny=this.y+this.vy*dt;
+-    if(collidesMob(this.x,ny,this.z)){
+-      if(this.vy<0)this.onGround=true;
+-      this.vy=0;
+-    }else{this.y=ny;this.onGround=false;}
+-    // Gentle step-up: try 0.5 block
+-    if(this.onGround&&(collidesMob(nx,this.y,nz)||collidesMob(this.x+this.vx*dt,this.y,this.z+this.vz*dt))){
+-      if(!collidesMob(this.x,this.y+0.5,this.z)){this.y+=0.5;this.vy=0;}
++    // Move + collide per axis with 1-block AUTO-STEP (climbs steps; old 0.5 step caused stuck/hopping)
++    const wantVx=this.vx,wantVz=this.vz,px0=this.x,pz0=this.z,wasOnGround=this.onGround;
++    this.onGround=false;
++    let stepped=false;
++    let nx=this.x+this.vx*dt;
++    if(!collidesMob(nx,this.y,this.z))this.x=nx;
++    else{
++      if(wasOnGround&&!stepped&&!collidesMob(nx,this.y+1,this.z)){this.y+=1;this.x=nx;stepped=true;} // step up 1 block
++      this.vx=0;
++    }
++    let nz=this.z+this.vz*dt;
++    if(!collidesMob(this.x,this.y,nz))this.z=nz;
++    else{
++      if(wasOnGround&&!stepped&&!collidesMob(this.x,this.y+1,nz)){this.y+=1;this.z=nz;stepped=true;} // step up 1 block
++      this.vz=0;
+     }
++    let ny=this.y+this.vy*dt;
++    if(!collidesMob(this.x,ny,this.z))this.y=ny;
++    else{if(this.vy<0)this.onGround=true;this.vy=0;}
++    // Anti-stuck: passive mob pressed against an obstacle on the ground -> re-pick wander target
++    if(!def.hostile&&this.onGround&&(Math.abs(wantVx)+Math.abs(wantVz)>0.3)&&(this.x===px0&&this.z===pz0)){this.wanderT=0;this.wanderTarget=null;}
+     // Walk animation (limbs pivot at hip/shoulder via translated geometry)
+     if(Math.abs(this.vx)+Math.abs(this.vz)>0.3)this.walkT+=dt*8;
+     const legs=this.mesh.userData.legs||[];
