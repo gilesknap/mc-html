@@ -439,7 +439,7 @@ class Chunk{constructor(cx,cz){this.cx=cx;this.cz=cz;this.blocks=new Uint8Array(
         this.blocks[this.idx(x,y,z)]=b;
       }
     }
-    this.generated=true;this.buildMesh();
+    this.generated=true;try{buildChunkMesh(this);}catch(e){console.error('Mesh error:',e);}
   }}
 function buildChunkMesh(chunk){
   if(chunk.mesh){scene.remove(chunk.mesh);chunk.mesh.geometry.dispose();}
@@ -471,7 +471,8 @@ function buildChunkMesh(chunk){
         const ci=f.c.map(c=>[x+c[0],y+c[1],z+c[2]]);
         const uvCoords=[[0,1],[1,1],[1,0],[0,0]];
         // Two triangles: 0-1-2, 0-2-3
-        for(let ti=0;ti<6;ti++){const idx=ti<3?ti:3-ti+1;const c=ci[idx];const uvc=uvCoords[idx];
+        const triIdx=[0,1,2,0,2,3];
+        for(let ti=0;ti<6;ti++){const idx=triIdx[ti];const c=ci[idx];const uvc=uvCoords[idx];
           target.pos.push(c[0],c[1],c[2]);target.norm.push(f.n[0],f.n[1],f.n[2]);
           target.uv.push(tileU0+(tileU1-tileU0)*uvc[0],tileV0+(tileV1-tileV0)*uvc[1]);
           target.col.push(light,light,light);}
