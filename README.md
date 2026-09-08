@@ -2,6 +2,8 @@
 
 A static showcase of two single-file Minecraft-style games built from the same prompt.
 
+[Open the showcase on GitHub Pages](https://gilesknap.github.io/mc-html/).
+
 - **Astra / Wildwood:** one continuous run, approximately 18 minutes, medium effort, as reported by the author. Includes implementation and verification within that run.
 - **Qwen / Voxel Craft:** `Qwen3.8-27B-UD-Q4_K_S.gguf`, run locally in pi.dev over several iterations and approximately four full 128K contexts, as reported by the author. Initially no agent internet access; `pi-web-access` was installed later.
 
@@ -105,3 +107,7 @@ The workflow assembles `_site/` from an explicit file list and uploads that arti
 ## Evidence and verification
 
 See [evidence/README.md](evidence/README.md) for sourcing and limitations, and [evidence/snapshot.json](evidence/snapshot.json) for hashes. Game code is intentionally preserved so the showcase does not quietly improve one contestant during presentation work.
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE).
