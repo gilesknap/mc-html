@@ -1,8 +1,18 @@
 # Voxel Craft — Handoff Document
 
 ## What This Is
-A single-file HTML Minecraft-style voxel game at `/workspaces/mc-html-home/index.html` (~1150 lines).
+A single-file HTML Minecraft-style voxel game at `/workspaces/mc-html-home/index.html` (~1324 lines).
 Three.js r128 from CDN, vanilla JS, no build tools, no external assets. All textures/procedural.
+
+## Test Harness (reuse after any logic change)
+`/tmp/vm_test.js` — Node `vm` harness with permissive THREE/DOM Proxy stubs (scene-graph tracking for
+Group.add/traverse + isMesh). Loads the REAL game script and runs 13 assertions: inventory stack caps,
+mine speeds, DDA raycast (stone + torch), hold-to-mine, crack overlay, torch mining, mousedown mob-attack
+edge case, block placement, mob mesh shapes for all 6 types, mob damage no-throw.
+```bash
+awk '/^<script>$/{flag=1;next}/^<\/script>/{flag=0}flag' index.html > /tmp/game.js && node --check /tmp/game.js && cd /tmp && node vm_test.js
+```
+Note: /tmp may be wiped between sessions — rebuild /tmp/game.js with the awk line; vm_test.js is in this doc's history (ask if missing).
 
 ## Current State: WORKING but needs polish
 The game runs, renders infinite terrain, has mobs, day/night, mining, crafting, inventory.
@@ -36,9 +46,9 @@ awk '/^<script>$/{flag=1;next}/^<\/script>/{flag=0}flag' index.html > /tmp/game.
 | 10. View Model | 760-800 | Held item mesh, swing anim, walk bob |
 | 11. Particles | 800-840 | Block break, explosion, torch ember, hit particles |
 | 12. Audio | 840-860 | Web Audio API: break, place, step, hurt, zombie, hiss, animal |
-| 13. Mobs | 860-1010 | `MOB_TYPES`, `createMobMesh` (boxy with eyes/horns/snouts), `Mob` class (AI, physics), `collidesMob`, `spawnMobs` |
-| 14. Day/Night | 1010-1050 | `timeOfDay`, sun/moon meshes, sky color lerp, fog, ambient/directional light |
-| 15. Main Loop | 1050-1150 | `gameLoop`, mouse handlers, resize, keyboard |
+| 13. Mobs | ~948-1200 | `MOB_TYPES`, procedural 16×16 mob skins (speckle/face painters), `createMobMesh` (MC proportions, pivot limbs), `Mob` class (AI, physics, flash decay), `collidesMob`, `spawnMobs` |
+| 14. Day/Night | ~1200-1240 | `timeOfDay`, sun/moon meshes, sky color lerp, fog, ambient/directional light |
+| 15. Main Loop | ~1240-1324 | `gameLoop`, mouse handlers, resize, keyboard |
 
 ## Key Architecture Decisions
 - **Infinite world**: `getBlockFinal(wx,wy,wz)` is a pure function of world coords + seed. No world bounds.
@@ -49,12 +59,19 @@ awk '/^<script>$/{flag=1;next}/^<\/script>/{flag=0}flag' index.html > /tmp/game.
 - **Lighting**: Simplified — based on depth below terrain surface. Torches checked via override lookup only. No flood-fill propagation.
 - **Meshing**: Single `BufferGeometry` per chunk (solid) + one for water. Vertex colors for lighting. Hidden faces culled.
 
+## Recently Fixed
+- **Mining** — crack overlay (6 procedural 16×16 crack textures, `crackMesh` box 1.012 over target, stage by `miningProgress`), `addToInventory` stack-cap bug (`n-=n` → proper take), mousedown always sets `miningTarget` (mob-attack no longer stalls mining), raycast now HITS torches (previously passed through, so placed torches were unmineable). Torches intentionally get no crack box (highlight only).
+- **Mobs** — rebuilt `createMobMesh` with real MC proportions (zombie 0.6×1.9 arms-forward, creeper 0.6×1.7, cow 0.9×1.4, pig 0.9×0.9, sheep 0.9×1.3, chicken 0.4×0.7) + procedural 16×16 pixel skins (zombie green/blue shirt/pants, creeper mottle + classic face, cow white patches + muzzle + hooves, pig snout/ears, sheep wool + pink face, chicken comb/wattle/beak). Limb geometry translated so rotation pivots at hip/shoulder. `damage()` no longer crashes on `Group.material` (traverse + per-mob materials), hit-flash decays via `flashT`.
+
 ## Known Issues / TODO (priority order)
 1. **Performance** — Still heavy. Main costs: `isCave`/`getOre` 3D noise per underground block, cross-chunk `getBlockFinal` calls during meshing. Could cache height map during mesh, reduce noise octaves further, or use Web Workers.
-2. **Mob appearance** — Box-based with some details (eyes, horns, snouts). User wanted to explore SVG-based textures for mobs. Could apply 16×16 procedural textures to mob body parts like block textures.
-3. **Mob AI** — Wander works but mobs still get stuck occasionally. No pathfinding (direct walk only). Could add simple obstacle avoidance.
-4. **Mining feedback** — No crack overlay on the targeted block. Progress is implicit (time-based). Could add a cracking texture overlay or shrinking outline.
-5. **Torch rendering** — Torches are stored as blocks but not rendered as geometry (skipped in mesh builder with `if(b===B.TORCH)continue`). Need small cross/quad geometry for torches.
+2. **Mob AI** — Wander works but mobs still get stuck occasionally. No pathfinding (direct walk only). Could add simple obstacle avoidance.
+3. **Torch rendering** — Torches are stored as blocks but not rendered as geometry (skipped in mesh builder with `if(b===B.TORCH)continue`). Need small cross/quad geometry for torches. (Torch MINING works via raycast now.)
+4. **Crafting table interaction** — `openCraftingTable` exists but the 3×3 grid UI reuses the inventory screen. Could be a separate overlay.
+5. **Item drop visuals** — Drops are plain white cubes. Could use the item icon texture.
+6. **Cave lighting** — No actual light propagation. Caves are lit by a simple depth falloff. Real Minecraft-style flood-fill sky/block light would be a major upgrade.
+7. **Sound polish** — Basic oscillator beeps. Could add noise-based sounds for more natural feel.
+8. **Mobile/touch support** — Not implemented. Desktop only (pointer lock + keyboard).
 6. **Crafting table interaction** — `openCraftingTable` exists but the 3×3 grid UI reuses the inventory screen. Could be a separate overlay.
 7. **Item drop visuals** — Drops are plain white cubes. Could use the item icon texture.
 8. **Cave lighting** — No actual light propagation. Caves are lit by a simple depth falloff. Real Minecraft-style flood-fill sky/block light would be a major upgrade.
@@ -92,7 +109,6 @@ WATER:8, WOOD:9, PLANKS:10, LEAVES:11, SNOW:12, CRAFT:13, TORCH:14, BEDROCK:15
 ## What the User Likes / Wants
 - Infinite world with no edges ✓
 - Varied biomes with dramatic terrain ✓
-- Mobs that look and behave like Minecraft
+- Mobs that look and behave like Minecraft (visuals done 2026: MC proportions + 16×16 procedural skins; behavior still basic)
 - Good performance (currently the main complaint)
-- Was interested in SVG references for mob design
 - Wants the game to "feel like Minecraft"

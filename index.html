@@ -621,7 +621,7 @@ function raycast(maxDist){
   let face=[0,0,0];
   for(let i=0;i<maxDist*3;i++){
     const b=getBlockFinal(x,y,z);
-    if(b!==B.AIR&&b!==B.WATER&&b!==B.TORCH){return{x,y,z,block:b,face};}
+    if(b!==B.AIR&&b!==B.WATER){return{x,y,z,block:b,face};}
     if(tMaxX<tMaxY&&tMaxX<tMaxZ){x+=stepX;tMaxX+=tDeltaX;face=[-stepX,0,0];}
     else if(tMaxY<tMaxZ){y+=stepY;tMaxY+=tDeltaY;face=[0,-stepY,0];}
     else{z+=stepZ;tMaxZ+=tDeltaZ;face=[0,0,-stepZ];}
@@ -632,8 +632,36 @@ function raycast(maxDist){
 // Mining target highlight
 const highlightBox=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.005,1.005,1.005)),new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:0.5}));
 scene.add(highlightBox);
-// Mining progress overlay
+// Mining progress overlay (procedural MC-style crack textures)
 const crackStages=6;
+const crackTexs=[];
+(function(){
+  for(let s=0;s<crackStages;s++){
+    const c=document.createElement('canvas');c.width=16;c.height=16;
+    const ctx=c.getContext('2d');ctx.clearRect(0,0,16,16);
+    ctx.strokeStyle='rgba(0,0,0,0.9)';ctx.lineWidth=1;
+    const n=3+s*2;
+    for(let i=0;i<n;i++){
+      let x,y;const side=i%4;
+      if(side===0){x=Math.random()*16;y=0;}
+      else if(side===1){x=16;y=Math.random()*16;}
+      else if(side===2){x=Math.random()*16;y=16;}
+      else{x=0;y=Math.random()*16;}
+      ctx.beginPath();ctx.moveTo(x,y);
+      let cx=x,cy=y;
+      const steps=3+Math.floor(Math.random()*2);
+      for(let j=0;j<steps;j++){cx+=(8-cx)/steps+(Math.random()-0.5)*3;cy+=(8-cy)/steps+(Math.random()-0.5)*3;ctx.lineTo(cx,cy);}
+      ctx.stroke();
+    }
+    const t=new THREE.CanvasTexture(c);t.magFilter=THREE.NearestFilter;t.minFilter=THREE.NearestFilter;
+    crackTexs.push(t);
+  }
+})();
+const crackMat=new THREE.MeshBasicMaterial({map:crackTexs[0],transparent:true,depthWrite:false});
+const crackMesh=new THREE.Mesh(new THREE.BoxGeometry(1.012,1.012,1.012),crackMat);
+crackMesh.visible=false;crackMesh.renderOrder=1;
+scene.add(crackMesh);
+let crackStage=-1;
 function getHeldTool(){const it=inventory[selectedSlot];if(it&&ITEMS[it.item]&&ITEMS[it.item].tool)return ITEMS[it.item].tool;return null;}
 function handleMining(dt){
   if(!locked||invOpen||player.dead)return;
@@ -641,13 +669,23 @@ function handleMining(dt){
   if(target){
     highlightBox.visible=true;
     highlightBox.position.set(target.x+0.5,target.y+0.5,target.z+0.5);
+    let cracking=false;
     if(mining){
       if(miningTarget&&miningTarget.x===target.x&&miningTarget.y===target.y&&miningTarget.z===target.z&&miningTarget.block===target.block){
         const tool=getHeldTool();const speed=getMineSpeed(target.block,tool);
-        if(speed>0){miningProgress+=dt/speed;if(miningProgress>=1){mineBlock(target.x,target.y,target.z,target.block);miningProgress=0;mining=false;}}
+        if(speed>0){
+          miningProgress+=dt/speed;cracking=true;
+          if(miningProgress>=1){mineBlock(target.x,target.y,target.z,target.block);miningProgress=0;mining=false;cracking=false;}
+        }
       }else{miningTarget=target;miningProgress=0;}
     }
-  }else{highlightBox.visible=false;mining=false;miningProgress=0;}
+    if(cracking&&target.block!==B.TORCH){
+      const st=Math.min(crackStages-1,Math.floor(miningProgress*crackStages));
+      if(st!==crackStage){crackStage=st;crackMat.map=crackTexs[st];crackMat.needsUpdate=true;}
+      crackMesh.visible=true;
+      crackMesh.position.set(target.x+0.5,target.y+0.5,target.z+0.5);
+    }else{crackMesh.visible=false;crackStage=-1;}
+  }else{highlightBox.visible=false;mining=false;miningProgress=0;crackMesh.visible=false;}
 }
 function mineBlock(x,y,z,block){
   if(block===B.BEDROCK)return;
@@ -701,7 +739,7 @@ function updateItemDrops(dt){
 function addToInventory(item,n){
   const max=ITEMS[item].max||64;
   for(let i=0;i<36;i++){if(inventory[i]&&inventory[i].item===item&&inventory[i].n<max){const space=max-inventory[i].n;const take=Math.min(space,n);inventory[i].n+=take;n-=take;if(n<=0){updateHotbar();return true;}}}
-  for(let i=0;i<36;i++){if(!inventory[i]){inventory[i]={item,n};n-=n;if(n<=0){updateHotbar();return true;}}}
+  for(let i=0;i<36;i++){if(!inventory[i]){const take=Math.min(max,n);inventory[i]={item,n:take};n-=take;if(n<=0){updateHotbar();return true;}}}
   return n<=0;
 }
 // ============================================================
@@ -912,64 +950,180 @@ function updateStepSound(dt){if(!locked||player.dead)return;if(player.onGround&&
 // ============================================================
 const mobs=[];
 const MOB_TYPES={
-  cow:{name:'Cow',hp:10,spd:1.2,dmg:0,drop:{item:'raw_beef',n:2},colors:[100,70,50],size:[0.8,0.7,1.4]},
-  pig:{name:'Pig',hp:10,spd:1.2,dmg:0,drop:{item:'raw_pork',n:2},colors:[230,160,160],size:[0.8,0.6,1.2]},
-  sheep:{name:'Sheep',hp:8,spd:1.0,dmg:0,drop:{item:'wool',n:1},colors:[220,220,220],size:[0.8,0.7,1.3]},
-  chicken:{name:'Chicken',hp:4,spd:1.5,dmg:0,drop:{item:'feather',n:1},colors:[240,240,240],size:[0.4,0.5,0.4]},
-  zombie:{name:'Zombie',hp:20,spd:1.4,dmg:3,hostile:true,colors:[50,140,50],size:[0.6,1.8,0.35]},
-  creeper:{name:'Creeper',hp:20,spd:1.3,dmg:0,hostile:true,colors:[0,200,0],size:[0.5,1.6,0.5]}
+  cow:{name:'Cow',hp:10,spd:1.2,dmg:0,drop:{item:'raw_beef',n:2}},
+  pig:{name:'Pig',hp:10,spd:1.2,dmg:0,drop:{item:'raw_pork',n:2}},
+  sheep:{name:'Sheep',hp:8,spd:1.0,dmg:0,drop:{item:'wool',n:1}},
+  chicken:{name:'Chicken',hp:4,spd:1.5,dmg:0,drop:{item:'feather',n:1}},
+  zombie:{name:'Zombie',hp:20,spd:1.4,dmg:3,hostile:true},
+  creeper:{name:'Creeper',hp:20,spd:1.3,dmg:0,hostile:true}
 };
-function createMobMesh(type,colors){
-  const g=new THREE.Group();const sz=MOB_TYPES[type].size;
-  const primary=new THREE.Color(colors[0]/255,colors[1]/255,colors[2]/255);
-  let secondary=primary.clone();
-  if(type==='cow')secondary.set(0.15,0.1,0.1);
-  else if(type==='pig')secondary.set(0.9,0.55,0.55);
-  else if(type==='sheep')secondary.set(0.85,0.7,0.5);
-  else if(type==='zombie')secondary.set(0.1,0.35,0.5);
-  else if(type==='creeper')secondary.set(0,0.5,0.1);
-  const mat=new THREE.MeshLambertMaterial({color:primary});
-  const mat2=new THREE.MeshLambertMaterial({color:secondary});
-  const eyeMat=new THREE.MeshBasicMaterial({color:0x111111});
-  const eyeWhite=new THREE.MeshBasicMaterial({color:0xffffff});
-  // Body
-  const bodyW=sz[0],bodyH=sz[1]*0.5,bodyD=sz[2];
-  const body=new THREE.Mesh(new THREE.BoxGeometry(bodyW,bodyH,bodyD),mat);body.position.y=sz[1]*0.4;g.add(body);
-  // Head
-  const headS=type==='chicken'?sz[0]*0.9:sz[0]*0.85;
-  const headH=type==='chicken'?sz[1]*0.35:sz[1]*0.4;
-  const head=new THREE.Mesh(new THREE.BoxGeometry(headS,headH,headS),mat);head.position.y=sz[1]*0.78+headH/2;g.add(head);
-  // Eyes
-  const eyeS=0.06;
-  const eyeL=new THREE.Mesh(new THREE.BoxGeometry(eyeS,eyeS*1.5,0.02),eyeMat);
-  eyeL.position.set(-headS*0.22,headH*0.1,headS/2+0.01);head.add(eyeL);
-  const eyeR=new THREE.Mesh(new THREE.BoxGeometry(eyeS,eyeS*1.5,0.02),eyeMat);
-  eyeR.position.set(headS*0.22,headH*0.1,headS/2+0.01);head.add(eyeR);
-  // Type-specific features
-  if(type==='pig'){const snout=new THREE.Mesh(new THREE.BoxGeometry(headS*0.4,headS*0.25,0.05),mat2);snout.position.set(0,-headH*0.15,headS/2+0.02);head.add(snout);}
-  if(type==='cow'){const patch1=new THREE.Mesh(new THREE.BoxGeometry(bodyW*0.6,bodyH*0.8,bodyD*0.3),mat2);patch1.position.set(0.1,bodyH*0.1,bodyD*0.3);g.add(patch1);
-    const horns=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.12,0.05),new THREE.MeshLambertMaterial({color:0xddcc88}));horns.position.set(-headS*0.3,headH*0.5,0);head.add(horns);
-    const horns2=horns.clone();horns2.position.x=headS*0.3;head.add(horns2);}
-  if(type==='chicken'){const beak=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.06,0.08),new THREE.MeshLambertMaterial({color:0xdd8800}));beak.position.set(0,-headH*0.15,headS/2+0.03);head.add(beak);
-    const comb=new THREE.Mesh(new THREE.BoxGeometry(0.04,0.08,0.04),new THREE.MeshLambertMaterial({color:0xcc0000}));comb.position.set(0,headH*0.55,0);head.add(comb);}
-  if(type==='creeper'){const mouth=new THREE.Mesh(new THREE.BoxGeometry(headS*0.5,headH*0.4,0.02),eyeMat);mouth.position.set(0,-headH*0.2,headS/2+0.01);head.add(mouth);
-    const mL=new THREE.Mesh(new THREE.BoxGeometry(headS*0.2,headH*0.25,0.02),eyeMat);mL.position.set(-headS*0.12,-headH*0.05,headS/2+0.01);head.add(mL);
-    const mR=mL.clone();mR.position.x=headS*0.12;head.add(mR);}
-  if(type==='zombie'){const shirtMat=new THREE.MeshLambertMaterial({color:0x2266aa});const shirt=new THREE.Mesh(new THREE.BoxGeometry(bodyW*0.9,bodyH*0.6,bodyD*0.9),shirtMat);shirt.position.y=sz[1]*0.45;g.add(shirt);}
-  // Legs
-  const legW=type==='chicken'?0.06:bodyW*0.25,legH=sz[1]*0.35,legD=type==='chicken'?0.06:bodyW*0.25;
-  const legGeo=new THREE.BoxGeometry(legW,legH,legD);
-  const legMat=type==='zombie'?new THREE.MeshLambertMaterial({color:0x334466}):mat;
-  const lx=type==='chicken'?0:bodyW*0.22,lz=type==='chicken'?0:bodyD*0.22;
-  const l1=new THREE.Mesh(legGeo,legMat);l1.position.set(-lx,sz[1]*0.15,lz);g.add(l1);
-  const l2=new THREE.Mesh(legGeo,legMat);l2.position.set(lx,sz[1]*0.15,lz);g.add(l2);
-  const l3=new THREE.Mesh(legGeo,legMat);l3.position.set(-lx,sz[1]*0.15,-lz);g.add(l3);
-  const l4=new THREE.Mesh(legGeo,legMat);l4.position.set(lx,sz[1]*0.15,-lz);g.add(l4);
-  g.userData.legs=[l1,l2,l3,l4];g.userData.head=head;return g;
+// ---------- Procedural 16x16 mob skins (MC-style pixel art) ----------
+function seededRnd(seed){let s=seed>>>0;return function(){s=(s*1664525+1013904223)>>>0;return s/4294967296;};}
+function mobCanvas(){const c=document.createElement('canvas');c.width=16;c.height=16;return c;}
+function mobTex(canvas){const t=new THREE.CanvasTexture(canvas);t.magFilter=THREE.NearestFilter;t.minFilter=THREE.NearestFilter;return t;}
+function fill16(x,rgb){x.fillStyle='rgb('+rgb.join(',')+')';x.fillRect(0,0,16,16);}
+function speckleTex(base,spots,n,seed){
+  const c=mobCanvas(),x=c.getContext('2d'),rnd=seededRnd(seed);
+  fill16(x,base);
+  for(let i=0;i<n;i++){x.fillStyle='rgb('+spots[Math.floor(rnd()*spots.length)].join(',')+')';
+    x.fillRect(Math.floor(rnd()*15),Math.floor(rnd()*15),1+Math.floor(rnd()*2),1+Math.floor(rnd()*2));}
+  return mobTex(c);
 }
-class Mob{constructor(type,x,y,z){this.type=type;this.x=x;this.y=y;this.z=z;this.vx=0;this.vy=0;this.vz=0;this.hp=MOB_TYPES[type].hp;this.maxHp=this.hp;this.onGround=false;this.target=null;this.fleeT=0;this.wanderT=0;this.wanderTarget=null;this.attackCd=0;this.fuseT=-1;this.flashT=0;this.mesh=createMobMesh(type,MOB_TYPES[type].colors);this.mesh.position.set(x,y,z);scene.add(this.mesh);this.walkT=0;this.deathT=0;this.dead=false;this.spawned=true;}
+// Zombie (green skin, blue shirt, dark pants)
+const zombieSkin=speckleTex([102,158,72],[[85,135,58],[115,170,85]],10,11);
+const zombieFace=(function(){const c=mobCanvas(),x=c.getContext('2d');fill16(x,[102,158,72]);
+  x.fillStyle='rgb(35,55,30)';x.fillRect(3,5,2,2);x.fillRect(11,5,2,2); // eyes
+  x.fillStyle='rgb(60,90,50)';x.fillRect(6,11,4,1);x.fillRect(5,10,1,1);x.fillRect(10,10,1,1); // frown
+  return mobTex(c);})();
+const zombieShirt=speckleTex([58,110,158],[[48,95,140],[70,125,170]],10,22);
+const zombiePants=speckleTex([56,68,96],[[45,55,80],[68,80,110]],10,33);
+// Creeper (mottled bright green)
+const CREEPER_COLS=[[50,160,50],[20,110,30],[110,200,90],[170,220,150],[35,130,40]];
+function creeperSpeckle(seed){
+  const c=mobCanvas(),x=c.getContext('2d'),rnd=seededRnd(seed);
+  fill16(x,[50,160,50]);
+  for(let i=0;i<140;i++){x.fillStyle='rgb('+CREEPER_COLS[Math.floor(rnd()*CREEPER_COLS.length)].join(',')+')';
+    x.fillRect(Math.floor(rnd()*16),Math.floor(rnd()*16),1+Math.floor(rnd()*2),1+Math.floor(rnd()*2));}
+  return mobTex(c);
+}
+const creeperSkin=creeperSpeckle(44);
+const creeperFace=(function(){const c=mobCanvas(),x=c.getContext('2d');fill16(x,[50,160,50]);
+  // mottle under the face
+  const rnd=seededRnd(55);for(let i=0;i<24;i++){x.fillStyle='rgb('+CREEPER_COLS[Math.floor(rnd()*CREEPER_COLS.length)].join(',')+')';x.fillRect(Math.floor(rnd()*16),Math.floor(rnd()*16),1,1);}
+  x.fillStyle='rgb(20,40,20)';
+  x.fillRect(2,4,4,4);x.fillRect(10,4,4,4); // eyes
+  x.fillRect(6,8,4,2); // nose
+  x.fillRect(4,10,8,2); // mouth bar
+  x.fillRect(4,12,2,4);x.fillRect(10,12,2,4); // mouth wings
+  return mobTex(c);})();
+// Cow (brown with white patches, cream muzzle)
+const cowBody=(function(){const c=mobCanvas(),x=c.getContext('2d'),rnd=seededRnd(66);
+  fill16(x,[110,75,45]);
+  for(let i=0;i<5;i++){x.fillStyle='rgb(225,215,200)';x.fillRect(Math.floor(rnd()*13),Math.floor(rnd()*13),2+Math.floor(rnd()*3),2+Math.floor(rnd()*3));}
+  for(let i=0;i<10;i++){x.fillStyle='rgb(95,62,36)';x.fillRect(Math.floor(rnd()*16),Math.floor(rnd()*16),1,1);}
+  return mobTex(c);})();
+const cowLegTex=(function(){const c=mobCanvas(),x=c.getContext('2d');fill16(x,[110,75,45]);
+  x.fillStyle='rgb(50,35,28)';x.fillRect(0,13,16,3); // hooves
+  return mobTex(c);})();
+const cowFaceTex=(function(){const c=mobCanvas(),x=c.getContext('2d');fill16(x,[110,75,45]);
+  x.fillStyle='rgb(225,215,200)';x.fillRect(4,10,8,6); // muzzle
+  x.fillStyle='rgb(60,40,30)';x.fillRect(6,12,1,2);x.fillRect(9,12,1,2); // nostrils
+  x.fillStyle='rgb(25,20,18)';x.fillRect(3,6,2,2);x.fillRect(11,6,2,2); // eyes
+  return mobTex(c);})();
+const cowMuzzleTex=(function(){const c=mobCanvas(),x=c.getContext('2d');fill16(x,[225,215,200]);
+  x.fillStyle='rgb(60,40,30)';x.fillRect(5,7,2,3);x.fillRect(9,7,2,3);
+  return mobTex(c);})();
+// Pig (pink, darker snout)
+const pigBody=speckleTex([235,165,160],[[225,150,150],[245,180,175]],10,77);
+const pigLegTex=(function(){const c=mobCanvas(),x=c.getContext('2d');fill16(x,[235,165,160]);
+  x.fillStyle='rgb(205,125,135)';x.fillRect(0,13,16,3);
+  return mobTex(c);})();
+const pigFaceTex=(function(){const c=mobCanvas(),x=c.getContext('2d');fill16(x,[235,165,160]);
+  x.fillStyle='rgb(40,30,30)';x.fillRect(3,5,2,2);x.fillRect(11,5,2,2); // eyes
+  x.fillStyle='rgb(220,140,145)';x.fillRect(4,9,8,4); // snout area
+  x.fillStyle='rgb(140,70,80)';x.fillRect(6,10,1,2);x.fillRect(9,10,1,2); // nostrils
+  return mobTex(c);})();
+const pigSnoutTex=(function(){const c=mobCanvas(),x=c.getContext('2d');fill16(x,[225,145,150]);
+  x.fillStyle='rgb(140,70,80)';x.fillRect(4,6,2,4);x.fillRect(10,6,2,4);
+  return mobTex(c);})();
+const pigEarTex=speckleTex([225,145,150],[[210,130,140]],4,81);
+// Sheep (white wool, pink face)
+const woolTex=speckleTex([235,235,230],[[210,210,205],[250,250,248]],16,88);
+const sheepFaceTex=(function(){const c=mobCanvas(),x=c.getContext('2d');fill16(x,[230,165,155]);
+  x.fillStyle='rgb(40,30,30)';x.fillRect(3,5,2,2);x.fillRect(11,5,2,2);
+  x.fillStyle='rgb(215,145,140)';x.fillRect(4,10,8,5);
+  x.fillStyle='rgb(150,90,90)';x.fillRect(6,12,1,2);x.fillRect(9,12,1,2);
+  return mobTex(c);})();
+const sheepLegTex=(function(){const c=mobCanvas(),x=c.getContext('2d');fill16(x,[230,180,175]);
+  x.fillStyle='rgb(120,90,90)';x.fillRect(0,13,16,3);
+  return mobTex(c);})();
+const sheepHeadSide=speckleTex([230,165,155],[[215,145,140],[240,180,170]],8,95);
+// Chicken (white, red comb/wattle, orange beak/legs)
+const chickenTex=speckleTex([240,240,235],[[215,215,208],[250,250,245]],10,99);
+const chickenFaceTex=(function(){const c=mobCanvas(),x=c.getContext('2d');fill16(x,[240,240,235]);
+  x.fillStyle='rgb(30,25,25)';x.fillRect(3,5,2,2);x.fillRect(11,5,2,2);
+  return mobTex(c);})();
+const redTex=(function(){const c=mobCanvas(),x=c.getContext('2d');fill16(x,[200,45,45]);return mobTex(c);})();
+const orangeTex=(function(){const c=mobCanvas(),x=c.getContext('2d');fill16(x,[235,155,40]);return mobTex(c);})();
+const yellowLegTex=(function(){const c=mobCanvas(),x=c.getContext('2d');fill16(x,[230,170,60]);
+  x.fillStyle='rgb(200,140,45)';x.fillRect(0,13,16,3);
+  return mobTex(c);})();
+// ---------- Mesh builder (MC proportions, block units, front = +z) ----------
+function mMat(tex){return new THREE.MeshLambertMaterial({map:tex});}
+function mobBox(w,h,d,mat){return new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);}
+function createMobMesh(type){
+  const g=new THREE.Group();
+  if(type==='zombie'){ // 0.6 wide, 1.9 tall; arms held forward
+    const skinM=mMat(zombieSkin),shirtM=mMat(zombieShirt),pantsM=mMat(zombiePants),faceM=mMat(zombieFace);
+    const headMats=[skinM,skinM,skinM,skinM,faceM,skinM];
+    const body=mobBox(0.5,0.75,0.25,shirtM);body.position.y=1.125;g.add(body);
+    const head=mobBox(0.5,0.5,0.5,headMats);head.position.y=1.65;g.add(head);
+    const armGeo=new THREE.BoxGeometry(0.25,0.75,0.25);armGeo.translate(0,-0.375,0);
+    const armL=new THREE.Mesh(armGeo,skinM);armL.position.set(-0.375,1.4,0);armL.rotation.x=-Math.PI/2+0.15;g.add(armL);
+    const armR=new THREE.Mesh(armGeo,skinM);armR.position.set(0.375,1.4,0);armR.rotation.x=-Math.PI/2+0.15;g.add(armR);
+    const legGeo=new THREE.BoxGeometry(0.25,0.75,0.25);legGeo.translate(0,-0.375,0);
+    const legs=[];
+    for(const sx of [-1,1]){const l=new THREE.Mesh(legGeo,pantsM);l.position.set(sx*0.125,0.75,0);g.add(l);legs.push(l);}
+    g.userData.legs=legs;g.userData.head=head;g.userData.headY=1.65;
+  }else if(type==='creeper'){ // 0.6 wide, 1.7 tall; stubby 4 legs
+    const skinM=mMat(creeperSkin),faceM=mMat(creeperFace);
+    const body=mobBox(0.4,0.75,0.3,skinM);body.position.y=0.825;g.add(body);
+    const head=mobBox(0.5,0.5,0.5,[skinM,skinM,skinM,skinM,faceM,skinM]);head.position.y=1.45;g.add(head);
+    const legGeo=new THREE.BoxGeometry(0.25,0.45,0.25);legGeo.translate(0,-0.225,0);
+    const legs=[];
+    for(const sx of [-1,1])for(const sz of [1,-1]){const l=new THREE.Mesh(legGeo,skinM);l.position.set(sx*0.1,0.45,sz*0.2);g.add(l);legs.push(l);}
+    g.userData.legs=legs;g.userData.head=head;g.userData.headY=1.45;
+  }else if(type==='cow'){ // 0.9 wide, 1.4 tall
+    const bodyM=mMat(cowBody),legM=mMat(cowLegTex),faceM=mMat(cowFaceTex);
+    const body=mobBox(0.9,0.7,1.2,bodyM);body.position.y=0.9;g.add(body);
+    const head=mobBox(0.45,0.45,0.4,[bodyM,bodyM,bodyM,bodyM,faceM,bodyM]);head.position.set(0,1.05,0.72);g.add(head);
+    const muzzle=mobBox(0.28,0.18,0.12,mMat(cowMuzzleTex));muzzle.position.set(0,0.93,0.95);g.add(muzzle);
+    const legGeo=new THREE.BoxGeometry(0.25,0.55,0.25);legGeo.translate(0,-0.275,0);
+    const legs=[];
+    for(const sx of [-1,1])for(const sz of [1,-1]){const l=new THREE.Mesh(legGeo,legM);l.position.set(sx*0.25,0.55,sz*0.35);g.add(l);legs.push(l);}
+    g.userData.legs=legs;g.userData.head=head;g.userData.headY=1.05;
+  }else if(type==='pig'){ // 0.9 wide, 0.9 tall
+    const bodyM=mMat(pigBody),legM=mMat(pigLegTex),faceM=mMat(pigFaceTex);
+    const body=mobBox(0.8,0.5,1.0,bodyM);body.position.y=0.55;g.add(body);
+    const head=mobBox(0.45,0.4,0.4,[bodyM,bodyM,bodyM,bodyM,faceM,bodyM]);head.position.set(0,0.62,0.68);g.add(head);
+    const snout=mobBox(0.26,0.16,0.1,mMat(pigSnoutTex));snout.position.set(0,0.55,0.9);g.add(snout);
+    const earM=mMat(pigEarTex);
+    const earL=mobBox(0.12,0.12,0.08,earM);earL.position.set(-0.18,0.82,0.6);g.add(earL);
+    const earR=mobBox(0.12,0.12,0.08,earM);earR.position.set(0.18,0.82,0.6);g.add(earR);
+    const legGeo=new THREE.BoxGeometry(0.2,0.3,0.2);legGeo.translate(0,-0.15,0);
+    const legs=[];
+    for(const sx of [-1,1])for(const sz of [1,-1]){const l=new THREE.Mesh(legGeo,legM);l.position.set(sx*0.22,0.3,sz*0.3);g.add(l);legs.push(l);}
+    g.userData.legs=legs;g.userData.head=head;g.userData.headY=0.62;
+  }else if(type==='sheep'){ // 0.9 wide, 1.3 tall
+    const woolM=mMat(woolTex),faceM=mMat(sheepFaceTex),legM=mMat(sheepLegTex);
+    const body=mobBox(0.95,0.65,1.25,woolM);body.position.y=0.825;g.add(body);
+    const headM=mMat(sheepHeadSide);
+    const head=mobBox(0.4,0.38,0.38,[headM,headM,headM,headM,faceM,headM]);head.position.set(0,0.98,0.68);g.add(head);
+    const legGeo=new THREE.BoxGeometry(0.2,0.5,0.2);legGeo.translate(0,-0.25,0);
+    const legs=[];
+    for(const sx of [-1,1])for(const sz of [1,-1]){const l=new THREE.Mesh(legGeo,legM);l.position.set(sx*0.2,0.5,sz*0.35);g.add(l);legs.push(l);}
+    g.userData.legs=legs;g.userData.head=head;g.userData.headY=0.98;
+  }else if(type==='chicken'){ // 0.4 wide, 0.7 tall
+    const bodyM=mMat(chickenTex),faceM=mMat(chickenFaceTex),redM=mMat(redTex);
+    const body=mobBox(0.35,0.35,0.35,bodyM);body.position.y=0.395;g.add(body);
+    const head=mobBox(0.28,0.26,0.28,[faceM,faceM,faceM,faceM,faceM,bodyM]);head.position.set(0,0.58,0.08);g.add(head);
+    const beak=mobBox(0.1,0.07,0.12,mMat(orangeTex));beak.position.set(0,0.54,0.28);g.add(beak);
+    const wattle=mobBox(0.06,0.06,0.05,redM);wattle.position.set(0,0.46,0.27);g.add(wattle);
+    const comb1=mobBox(0.06,0.09,0.06,redM);comb1.position.set(0,0.73,0.06);g.add(comb1);
+    const comb2=mobBox(0.05,0.07,0.05,redM);comb2.position.set(-0.06,0.71,0.04);g.add(comb2);
+    const comb3=mobBox(0.05,0.07,0.05,redM);comb3.position.set(0.06,0.71,0.04);g.add(comb3);
+    const legGeo=new THREE.BoxGeometry(0.06,0.22,0.06);legGeo.translate(0,-0.11,0);
+    const legs=[];
+    for(const sx of [-1,1]){const l=new THREE.Mesh(legGeo,mMat(yellowLegTex));l.position.set(sx*0.1,0.22,0);g.add(l);legs.push(l);}
+    g.userData.legs=legs;g.userData.head=head;g.userData.headY=0.58;
+  }
+  return g;
+}
+
+class Mob{constructor(type,x,y,z){this.type=type;this.x=x;this.y=y;this.z=z;this.vx=0;this.vy=0;this.vz=0;this.hp=MOB_TYPES[type].hp;this.maxHp=this.hp;this.onGround=false;this.target=null;this.fleeT=0;this.wanderT=0;this.wanderTarget=null;this.attackCd=0;this.fuseT=-1;this.flashT=0;this.mesh=createMobMesh(type);this.mesh.position.set(x,y,z);scene.add(this.mesh);this.walkT=0;this.deathT=0;this.dead=false;this.spawned=true;}
   update(dt){
     if(this.dead){this.deathT+=dt;this.mesh.position.y-=dt*3;if(this.deathT>1)this.despawn();return;}
+    if(this.flashT>0){this.flashT-=dt;if(this.flashT<=0){this.mesh.traverse(o=>{if(o.isMesh){const ms=Array.isArray(o.material)?o.material:[o.material];for(const mm of ms){if(mm.emissive)mm.emissive.setRGB(0,0,0);}}});}}
     const def=MOB_TYPES[this.type];
     // Gravity
     this.vy+=GRAVITY*dt;this.vy=Math.max(this.vy,-30);
@@ -1002,10 +1156,15 @@ class Mob{constructor(type,x,y,z){this.type=type;this.x=x;this.y=y;this.z=z;this
     if(this.onGround&&(collidesMob(nx,this.y,nz)||collidesMob(this.x+this.vx*dt,this.y,this.z+this.vz*dt))){
       if(!collidesMob(this.x,this.y+0.5,this.z)){this.y+=0.5;this.vy=0;}
     }
-    // Walk animation
+    // Walk animation (limbs pivot at hip/shoulder via translated geometry)
     if(Math.abs(this.vx)+Math.abs(this.vz)>0.3)this.walkT+=dt*8;
-    const legs=this.mesh.userData.legs;if(legs){const sw=Math.sin(this.walkT)*0.4;legs[0].rotation.x=sw;legs[1].rotation.x=-sw;legs[2].rotation.x=-sw;legs[3].rotation.x=sw;}
-    const head=this.mesh.userData.head;if(head)head.position.y=MOB_TYPES[this.type].size[1]*0.85+Math.sin(this.walkT*0.5)*0.03;
+    const legs=this.mesh.userData.legs||[];
+    const sw=Math.sin(this.walkT)*0.4;
+    if(legs[0])legs[0].rotation.x=sw;
+    if(legs[1])legs[1].rotation.x=-sw;
+    if(legs[2])legs[2].rotation.x=-sw;
+    if(legs[3])legs[3].rotation.x=sw;
+    const head=this.mesh.userData.head;if(head)head.position.y=(this.mesh.userData.headY||1.4)+Math.sin(this.walkT*0.5)*0.02;
     this.mesh.position.set(this.x,this.y,this.z);
     this.mesh.rotation.y=Math.atan2(this.vx,this.vz);
     // Despawn if too far
@@ -1013,7 +1172,8 @@ class Mob{constructor(type,x,y,z){this.type=type;this.x=x;this.y=y;this.z=z;this
     // Dawn burn
     if(def.hostile&&timeOfDay>0.3&&timeOfDay<0.7&&this.y>SEA_LEVEL&&this.flashT<=0){this.damage(5,true);}
   }
-  damage(dmg,burn){this.hp-=dmg;this.flashT=0.2;this.fleeT=2;this.mesh.material.emissive=new THREE.Color(1,0,0);this.mesh.material.emissiveIntensity=0.5;
+  damage(dmg,burn){this.hp-=dmg;this.flashT=0.2;this.fleeT=2;
+    this.mesh.traverse(o=>{if(o.isMesh){const ms=Array.isArray(o.material)?o.material:[o.material];for(const mm of ms){if(mm.emissive){mm.emissive.setRGB(1,0,0);mm.emissiveIntensity=0.6;}}}});
     if(!burn)playSound('hurt');
     spawnHitParticle(this.x,this.y+1,this.z);
     if(this.hp<=0&&!this.dead){this.dead=true;this.deathT=0;const drop=MOB_TYPES[this.type].drop;if(drop)spawnItemDrop(this.x,this.y+0.5,this.z,drop.item,drop.n);}
@@ -1137,7 +1297,7 @@ el.addEventListener('mousedown',e=>{
         if(dist<2.5&&Math.abs(target.x+0.5-m.x)<1&&Math.abs(target.y+0.5-(m.y+0.9))<1.5){
           const dmg=ITEMS[inventory[selectedSlot]?.item]?.dmg||1;
           m.damage(dmg);m.x+=dx/dist*3;m.z+=dz/dist*3;m.vy=4;playSound('hurt');attacked=true;break;}}
-      if(!attacked)miningTarget=target;
+      miningTarget=target;
     }
     swingAnim=1;
   }else if(e.button===2){
