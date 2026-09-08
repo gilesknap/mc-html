@@ -58,7 +58,7 @@ const RENDER_DISTANCE = 8, MAX_GEN_PER_FRAME = 5;
 const DAY_LENGTH = 240;
 const PW = 0.6, PH = 1.8, P_EYE = 1.62;
 const GRAVITY = -20, JUMP_VEL = 8, WALK_SPD = 4.5, SPRINT_SPD = 6.75;
-const WATER_MULT = 0.5, REACH = 6, MAX_MOBS = 40, MAX_HOSTILE = 15;
+const WATER_MULT = 0.5, REACH = 6, MAX_MOBS = 20, MAX_HOSTILE = 5;
 const WSEED = 12345;
 
 const B = {AIR:0,GRASS:1,DIRT:2,STONE:3,COBBLE:4,COAL:5,IRON:6,SAND:7,WATER:8,WOOD:9,PLANKS:10,LEAVES:11,SNOW:12,CRAFT:13,TORCH:14,BEDROCK:15};
@@ -69,7 +69,7 @@ const HARDNESS = {[B.GRASS]:1.5,[B.DIRT]:1,[B.STONE]:4,[B.COBBLE]:4,[B.COAL]:4,[
 function getMineSpeed(block, toolType) {
   if (HARDNESS[block] === Infinity) return 0;
   const h = HARDNESS[block];
-  if (!toolType) return h * 1.5;
+  if (!toolType) return h * 0.7;
   // Tools: pickaxe speeds up stone/cobble/ores, axe speeds up wood/planks, shovel speeds up dirt/sand/grass/snow
   const isStone = [B.STONE,B.COBBLE,B.COAL,B.IRON].includes(block);
   const isWood = [B.WOOD,B.PLANKS,B.CRAFT].includes(block);
@@ -369,14 +369,22 @@ function getTreeBlock(wx,wy,wz){
   }
   return 0;
 }
-// Simpler: check if this world pos is a tree trunk or leaf
+// Check if this world pos is a tree trunk or leaf (checks neighboring columns for canopy)
 function isTreeBlock(wx,wy,wz){
-  const t=getTreeAt(wx,wz);if(!t)return 0;
-  if(wy>=t.h&&wy<t.h+t.trunkH)return B.WOOD;
-  // Canopy: spherical check
-  const cx=wx,cz=wz,cy=t.h+t.trunkH-1;
-  const dx=wx-cx,dy=wy-cy,dz=wz-cz;
-  if(dx*dx+dy*dy*1.3+dz*dz<=t.canopyR*t.canopyR&&wy>=t.h+t.trunkH-2)return B.LEAVES;
+  const t=getTreeAt(wx,wz);
+  if(t){
+    if(wy>=t.h&&wy<t.h+t.trunkH)return B.WOOD;
+    const cy=t.h+t.trunkH-1,dy=wy-cy;
+    if(dy*dy*1.3<=t.canopyR*t.canopyR&&wy>=t.h+t.trunkH-2)return B.LEAVES;
+  }
+  // Check neighboring columns for canopy overlap
+  for(let ox=-2;ox<=2;ox++)for(let oz=-2;oz<=2;oz++){
+    if(ox===0&&oz===0)continue;
+    const nt=getTreeAt(wx+ox,wz+oz);
+    if(!nt)continue;
+    const cy=nt.h+nt.trunkH-1,dx=-ox,dy=wy-cy,dz=-oz;
+    if(dx*dx+dy*dy*1.3+dz*dz<=nt.canopyR*nt.canopyR&&wy>=nt.h+nt.trunkH-2)return B.LEAVES;
+  }
   return 0;
 }
 // Combined final block: terrain + trees + water
@@ -547,7 +555,8 @@ function updatePlayer(dt){
   const sprint=keys['ShiftLeft']||keys['ControlLeft'];
   const spd=sprint?SPRINT_SPD:WALK_SPD;
   const inWater=getBlockFinal(Math.floor(player.x),Math.floor(player.y+0.5),Math.floor(player.z))===B.WATER;
-  const mspd=inWater?spd*WATER_MULT:spd;
+  const headInWater=getBlockFinal(Math.floor(player.x),Math.floor(player.y+P_EYE),Math.floor(player.z))===B.WATER;
+  const mspd=(inWater||headInWater)?spd*WATER_MULT:spd;
   const fx=-Math.sin(yaw),fz=-Math.cos(yaw),rx=Math.cos(yaw),rz=-Math.sin(yaw);
   let mx=0,mz=0;
   if(keys['KeyW']||keys['ArrowUp']){mx+=fx;mz+=fz;}
@@ -556,7 +565,7 @@ function updatePlayer(dt){
   if(keys['KeyD']||keys['ArrowRight']){mx-=rx;mz-=rz;}
   const len=Math.sqrt(mx*mx+mz*mz);if(len>0){mx/=len;mz/=len;}
   player.vx=mx*mspd;player.vz=mz*mspd;
-  if(inWater){player.vy+=GRAVITY*0.3*dt;if(keys['Space'])player.vy=3;}
+  if(inWater||headInWater){player.vy+=GRAVITY*0.25*dt;if(keys['Space'])player.vy=6.5;}
   else{player.vy+=GRAVITY*dt;if(keys['Space']&&player.onGround){player.vy=JUMP_VEL;player.onGround=false;}}
   // Move and collide per axis
   let nx=player.x+player.vx*dt;if(collides(nx,player.y,player.z)){nx=player.x;player.vx=0;}
@@ -893,15 +902,50 @@ const MOB_TYPES={
 };
 function createMobMesh(type,colors){
   const g=new THREE.Group();const sz=MOB_TYPES[type].size;
-  const mat=new THREE.MeshLambertMaterial({color:new THREE.Color(colors[0]/255,colors[1]/255,colors[2]/255)});
-  const body=new THREE.Mesh(new THREE.BoxGeometry(sz[0],sz[1]*0.5,sz[2]),mat);body.position.y=sz[1]*0.45;g.add(body);
-  const head=new THREE.Mesh(new THREE.BoxGeometry(sz[0]*0.8,sz[1]*0.4,sz[0]*0.8),mat);head.position.y=sz[1]*0.85;g.add(head);
+  const primary=new THREE.Color(colors[0]/255,colors[1]/255,colors[2]/255);
+  let secondary=primary.clone();
+  if(type==='cow')secondary.set(0.15,0.1,0.1);
+  else if(type==='pig')secondary.set(0.9,0.55,0.55);
+  else if(type==='sheep')secondary.set(0.85,0.7,0.5);
+  else if(type==='zombie')secondary.set(0.1,0.35,0.5);
+  else if(type==='creeper')secondary.set(0,0.5,0.1);
+  const mat=new THREE.MeshLambertMaterial({color:primary});
+  const mat2=new THREE.MeshLambertMaterial({color:secondary});
+  const eyeMat=new THREE.MeshBasicMaterial({color:0x111111});
+  const eyeWhite=new THREE.MeshBasicMaterial({color:0xffffff});
+  // Body
+  const bodyW=sz[0],bodyH=sz[1]*0.5,bodyD=sz[2];
+  const body=new THREE.Mesh(new THREE.BoxGeometry(bodyW,bodyH,bodyD),mat);body.position.y=sz[1]*0.4;g.add(body);
+  // Head
+  const headS=type==='chicken'?sz[0]*0.9:sz[0]*0.85;
+  const headH=type==='chicken'?sz[1]*0.35:sz[1]*0.4;
+  const head=new THREE.Mesh(new THREE.BoxGeometry(headS,headH,headS),mat);head.position.y=sz[1]*0.78+headH/2;g.add(head);
+  // Eyes
+  const eyeS=0.06;
+  const eyeL=new THREE.Mesh(new THREE.BoxGeometry(eyeS,eyeS*1.5,0.02),eyeMat);
+  eyeL.position.set(-headS*0.22,headH*0.1,headS/2+0.01);head.add(eyeL);
+  const eyeR=new THREE.Mesh(new THREE.BoxGeometry(eyeS,eyeS*1.5,0.02),eyeMat);
+  eyeR.position.set(headS*0.22,headH*0.1,headS/2+0.01);head.add(eyeR);
+  // Type-specific features
+  if(type==='pig'){const snout=new THREE.Mesh(new THREE.BoxGeometry(headS*0.4,headS*0.25,0.05),mat2);snout.position.set(0,-headH*0.15,headS/2+0.02);head.add(snout);}
+  if(type==='cow'){const patch1=new THREE.Mesh(new THREE.BoxGeometry(bodyW*0.6,bodyH*0.8,bodyD*0.3),mat2);patch1.position.set(0.1,bodyH*0.1,bodyD*0.3);g.add(patch1);
+    const horns=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.12,0.05),new THREE.MeshLambertMaterial({color:0xddcc88}));horns.position.set(-headS*0.3,headH*0.5,0);head.add(horns);
+    const horns2=horns.clone();horns2.position.x=headS*0.3;head.add(horns2);}
+  if(type==='chicken'){const beak=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.06,0.08),new THREE.MeshLambertMaterial({color:0xdd8800}));beak.position.set(0,-headH*0.15,headS/2+0.03);head.add(beak);
+    const comb=new THREE.Mesh(new THREE.BoxGeometry(0.04,0.08,0.04),new THREE.MeshLambertMaterial({color:0xcc0000}));comb.position.set(0,headH*0.55,0);head.add(comb);}
+  if(type==='creeper'){const mouth=new THREE.Mesh(new THREE.BoxGeometry(headS*0.5,headH*0.4,0.02),eyeMat);mouth.position.set(0,-headH*0.2,headS/2+0.01);head.add(mouth);
+    const mL=new THREE.Mesh(new THREE.BoxGeometry(headS*0.2,headH*0.25,0.02),eyeMat);mL.position.set(-headS*0.12,-headH*0.05,headS/2+0.01);head.add(mL);
+    const mR=mL.clone();mR.position.x=headS*0.12;head.add(mR);}
+  if(type==='zombie'){const shirtMat=new THREE.MeshLambertMaterial({color:0x2266aa});const shirt=new THREE.Mesh(new THREE.BoxGeometry(bodyW*0.9,bodyH*0.6,bodyD*0.9),shirtMat);shirt.position.y=sz[1]*0.45;g.add(shirt);}
   // Legs
-  const legGeo=new THREE.BoxGeometry(sz[0]*0.3,sz[1]*0.4,sz[0]*0.3);
-  const l1=new THREE.Mesh(legGeo,mat);l1.position.set(-sz[0]*0.25,sz[1]*0.15,sz[2]*0.25);g.add(l1);
-  const l2=new THREE.Mesh(legGeo,mat);l2.position.set(sz[0]*0.25,sz[1]*0.15,sz[2]*0.25);g.add(l2);
-  const l3=new THREE.Mesh(legGeo,mat);l3.position.set(-sz[0]*0.25,sz[1]*0.15,-sz[2]*0.25);g.add(l3);
-  const l4=new THREE.Mesh(legGeo,mat);l4.position.set(sz[0]*0.25,sz[1]*0.15,-sz[2]*0.25);g.add(l4);
+  const legW=type==='chicken'?0.06:bodyW*0.25,legH=sz[1]*0.35,legD=type==='chicken'?0.06:bodyW*0.25;
+  const legGeo=new THREE.BoxGeometry(legW,legH,legD);
+  const legMat=type==='zombie'?new THREE.MeshLambertMaterial({color:0x334466}):mat;
+  const lx=type==='chicken'?0:bodyW*0.22,lz=type==='chicken'?0:bodyD*0.22;
+  const l1=new THREE.Mesh(legGeo,legMat);l1.position.set(-lx,sz[1]*0.15,lz);g.add(l1);
+  const l2=new THREE.Mesh(legGeo,legMat);l2.position.set(lx,sz[1]*0.15,lz);g.add(l2);
+  const l3=new THREE.Mesh(legGeo,legMat);l3.position.set(-lx,sz[1]*0.15,-lz);g.add(l3);
+  const l4=new THREE.Mesh(legGeo,legMat);l4.position.set(lx,sz[1]*0.15,-lz);g.add(l4);
   g.userData.legs=[l1,l2,l3,l4];g.userData.head=head;return g;
 }
 class Mob{constructor(type,x,y,z){this.type=type;this.x=x;this.y=y;this.z=z;this.vx=0;this.vy=0;this.vz=0;this.hp=MOB_TYPES[type].hp;this.maxHp=this.hp;this.onGround=false;this.target=null;this.fleeT=0;this.wanderT=0;this.wanderTarget=null;this.attackCd=0;this.fuseT=-1;this.flashT=0;this.mesh=createMobMesh(type,MOB_TYPES[type].colors);this.mesh.position.set(x,y,z);scene.add(this.mesh);this.walkT=0;this.deathT=0;this.dead=false;this.spawned=true;}
@@ -973,14 +1017,14 @@ function spawnMobs(){
   for(const m of mobs){if(MOB_TYPES[m.type].hostile)hostileCount++;else passiveCount++;}
   if(mobs.length<MAX_MOBS){
     // Try to spawn passive animals
-    if(passiveCount<20){const r=Math.random();if(r<0.02){
+    if(passiveCount<10){const r=Math.random();if(r<0.005){
       const types=['cow','pig','sheep','chicken'];const type=types[Math.floor(Math.random()*4)];
       const sx=player.x+(Math.random()-0.5)*30,sz=player.z+(Math.random()-0.5)*30;
       const h=getTerrainHeight(Math.floor(sx),Math.floor(sz));
       if(h>SEA_LEVEL&&h<SEA_LEVEL+25){const biome=getBiome(Math.floor(sx),Math.floor(sz));if(biome===0||biome===1||biome===2){const mob=new Mob(type,sx,h+2,sz);mobs.push(mob);}}}}
     // Hostile spawn at night or in dark caves
     const isNight=timeOfDay<0.25||timeOfDay>0.75;
-    if((isNight||true)&&hostileCount<MAX_HOSTILE){const r=Math.random();if(r<0.015){
+    if(isNight&&hostileCount<MAX_HOSTILE){const r=Math.random();if(r<0.003){
       const types=['zombie','zombie','zombie','creeper'];const type=types[Math.floor(Math.random()*4)];
       const sx=player.x+(Math.random()-0.5)*24,sz=player.z+(Math.random()-0.5)*24;
       const h=getTerrainHeight(Math.floor(sx),Math.floor(sz));
