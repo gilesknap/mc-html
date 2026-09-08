@@ -1,22 +1,24 @@
 # Voxel Craft — Handoff Document
 
 ## What This Is
-A single-file HTML Minecraft-style voxel game at `/workspaces/mc-html-home/index.html` (~1324 lines).
+A single-file HTML Minecraft-style voxel game at `/workspaces/mc-html-home/index.html` (~1379 lines).
 Three.js r128 from CDN, vanilla JS, no build tools, no external assets. All textures/procedural.
 
 ## Test Harness (reuse after any logic change)
-`/tmp/vm_test.js` — Node `vm` harness with permissive THREE/DOM Proxy stubs (scene-graph tracking for
-Group.add/traverse + isMesh). Loads the REAL game script and runs 13 assertions: inventory stack caps,
-mine speeds, DDA raycast (stone + torch), hold-to-mine, crack overlay, torch mining, mousedown mob-attack
-edge case, block placement, mob mesh shapes for all 6 types, mob damage no-throw.
+`test.js` (in this folder) — self-contained Node `vm` harness with permissive THREE/DOM/audio Proxy stubs
+(scene-graph tracking for Group.add/traverse + isMesh). Extracts the real `<script>` from index.html and runs
+**45 assertions**: sanity/world, memoization correctness, selected-slot preference, stack caps, mine speeds,
+DDA raycast (stone + torch), hold-to-mine (break + crack), torch mining, block placement, player auto-jump
+(1-step yes / 2-wall no), mob auto-step, mob mesh shapes (all 6 types), mob damage no-throw, mousedown mining-target.
 ```bash
-awk '/^<script>$/{flag=1;next}/^<\/script>/{flag=0}flag' index.html > /tmp/game.js && node --check /tmp/game.js && cd /tmp && node vm_test.js
+cd /workspaces/mc-html-home && node test.js
 ```
-Note: /tmp may be wiped between sessions — rebuild /tmp/game.js with the awk line; vm_test.js is in this doc's history (ask if missing).
+No build step. Exits non-zero on any failure.
 
-## Current State: WORKING but needs polish
-The game runs, renders infinite terrain, has mobs, day/night, mining, crafting, inventory.
-Player can walk, mine, craft, and explore. Known issues listed below.
+## Current State: WORKING, polished
+The game runs, renders infinite terrain, has mobs, day/night, mining, crafting, inventory. Player auto-jumps,
+mobs step up ledges, mined blocks land in the held slot, and chunk gen is cached/time-budgeted.
+Remaining polish listed under Known Issues.
 
 ## How to Run
 ```bash
@@ -28,7 +30,7 @@ python3 -m http.server 8080
 
 ## Syntax Check
 ```bash
-awk '/^<script>$/{flag=1;next}/^<\/script>/{flag=0}flag' index.html > /tmp/game.js && node --check /tmp/game.js
+cd /workspaces/mc-html-home && node test.js   # runs the full harness (extracts + validates + asserts)
 ```
 
 ## File Structure (by line section)
@@ -60,23 +62,21 @@ awk '/^<script>$/{flag=1;next}/^<\/script>/{flag=0}flag' index.html > /tmp/game.
 - **Meshing**: Single `BufferGeometry` per chunk (solid) + one for water. Vertex colors for lighting. Hidden faces culled.
 
 ## Recently Fixed
+- **Mob auto-step** (was stuck/hopping at steps) — per-axis 1-block auto-step in `Mob.update` (was 0.5 block → perpetual hop); passive mobs re-pick wander target when blocked on ground (anti-stuck).
+- **Player auto-jump** — per-axis 1-block step-up in `updatePlayer` (`wasOnGround && wantMove`); also fixed fall damage that never triggered (impact velocity was zeroed before the check).
+- **Mined block → selected slot** — `addToInventory(item,n,prefer)` fills the held/selected hotbar slot first before standard first-empty logic (was always slot 0).
+- **Performance** — memoized `getTerrainHeight` (`terrainCache`) + `getGeneratedBlock` (`genBlockCache`, pure fns), removed a redundant `getTerrainHeight` call (`getBiome`→`getBiomeRaw(wx,wz,h)`), adaptive 8ms time budget in `updateChunks` (was fixed 8-chunk spikes), and `drawItemIcon` now indexes a single cached `atlasData` array instead of per-pixel `getImageData` readbacks.
 - **Mining** — crack overlay (6 procedural 16×16 crack textures, `crackMesh` box 1.012 over target, stage by `miningProgress`), `addToInventory` stack-cap bug (`n-=n` → proper take), mousedown always sets `miningTarget` (mob-attack no longer stalls mining), raycast now HITS torches (previously passed through, so placed torches were unmineable). Torches intentionally get no crack box (highlight only).
 - **Mobs** — rebuilt `createMobMesh` with real MC proportions (zombie 0.6×1.9 arms-forward, creeper 0.6×1.7, cow 0.9×1.4, pig 0.9×0.9, sheep 0.9×1.3, chicken 0.4×0.7) + procedural 16×16 pixel skins (zombie green/blue shirt/pants, creeper mottle + classic face, cow white patches + muzzle + hooves, pig snout/ears, sheep wool + pink face, chicken comb/wattle/beak). Limb geometry translated so rotation pivots at hip/shoulder. `damage()` no longer crashes on `Group.material` (traverse + per-mob materials), hit-flash decays via `flashT`.
 
 ## Known Issues / TODO (priority order)
-1. **Performance** — Still heavy. Main costs: `isCave`/`getOre` 3D noise per underground block, cross-chunk `getBlockFinal` calls during meshing. Could cache height map during mesh, reduce noise octaves further, or use Web Workers.
-2. **Mob AI** — Wander works but mobs still get stuck occasionally. No pathfinding (direct walk only). Could add simple obstacle avoidance.
-3. **Torch rendering** — Torches are stored as blocks but not rendered as geometry (skipped in mesh builder with `if(b===B.TORCH)continue`). Need small cross/quad geometry for torches. (Torch MINING works via raycast now.)
-4. **Crafting table interaction** — `openCraftingTable` exists but the 3×3 grid UI reuses the inventory screen. Could be a separate overlay.
-5. **Item drop visuals** — Drops are plain white cubes. Could use the item icon texture.
-6. **Cave lighting** — No actual light propagation. Caves are lit by a simple depth falloff. Real Minecraft-style flood-fill sky/block light would be a major upgrade.
-7. **Sound polish** — Basic oscillator beeps. Could add noise-based sounds for more natural feel.
-8. **Mobile/touch support** — Not implemented. Desktop only (pointer lock + keyboard).
-6. **Crafting table interaction** — `openCraftingTable` exists but the 3×3 grid UI reuses the inventory screen. Could be a separate overlay.
-7. **Item drop visuals** — Drops are plain white cubes. Could use the item icon texture.
-8. **Cave lighting** — No actual light propagation. Caves are lit by a simple depth falloff. Real Minecraft-style flood-fill sky/block light would be a major upgrade.
-9. **Sound polish** — Basic oscillator beeps. Could add noise-based sounds for more natural feel.
-10. **Mobile/touch support** — Not implemented. Desktop only (pointer lock + keyboard).
+1. **Torch rendering** — Torches are stored as blocks but not rendered as geometry (skipped in mesh builder with `if(b===B.TORCH)continue`). Need small cross/quad geometry for torches. (Torch MINING works via raycast now.)
+2. **Mob AI pathfinding** — Wander + auto-step work, but mobs still get stuck in complex terrain. No pathfinding (direct walk only). Could add simple obstacle avoidance.
+3. **Crafting table interaction** — `openCraftingTable` exists but the 3×3 grid UI reuses the inventory screen. Could be a separate overlay.
+4. **Item drop visuals** — Drops are plain white cubes. Could use the item icon texture.
+5. **Cave lighting** — No actual light propagation. Caves are lit by a simple depth falloff. Real Minecraft-style flood-fill sky/block light would be a major upgrade.
+6. **Sound polish** — Basic oscillator beeps. Could add noise-based sounds for more natural feel.
+7. **Mobile/touch support** — Not implemented. Desktop only (pointer lock + keyboard).
 
 ## Configuration Knobs (top of file, line ~55)
 ```javascript
@@ -109,6 +109,6 @@ WATER:8, WOOD:9, PLANKS:10, LEAVES:11, SNOW:12, CRAFT:13, TORCH:14, BEDROCK:15
 ## What the User Likes / Wants
 - Infinite world with no edges ✓
 - Varied biomes with dramatic terrain ✓
-- Mobs that look and behave like Minecraft (visuals done 2026: MC proportions + 16×16 procedural skins; behavior still basic)
-- Good performance (currently the main complaint)
+- Mobs that look and behave like Minecraft (visuals done: MC proportions + 16×16 procedural skins; auto-step/anti-stuck done)
+- Good performance (now cached + time-budgeted — verify in-browser with the FPS counter)
 - Wants the game to "feel like Minecraft"
