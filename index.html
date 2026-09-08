@@ -415,34 +415,53 @@ class Chunk{constructor(cx,cz){this.cx=cx;this.cz=cz;this.blocks=new Uint8Array(
   getBlock(lx,ly,lz){if(ly<0||ly>=CHUNK_HEIGHT)return B.AIR;if(lx<0||lx>=CHUNK_SIZE||lz<0||lz>=CHUNK_SIZE)return B.AIR;return this.blocks[this.idx(lx,ly,lz)];}
   setBlock(lx,ly,lz,b){if(ly<0||ly>=CHUNK_HEIGHT)return;this.blocks[this.idx(lx,ly,lz)]=b;}
   generate(){
-    // Pre-compute per-column values to avoid redundant noise calls
+    // Pre-compute per-column values
     const heights=new Int16Array(CHUNK_SIZE*CHUNK_SIZE);
     const biomes=new Uint8Array(CHUNK_SIZE*CHUNK_SIZE);
+    const ox=this.cx*CHUNK_SIZE,oz=this.cz*CHUNK_SIZE;
     for(let x=0;x<CHUNK_SIZE;x++)for(let z=0;z<CHUNK_SIZE;z++){
-      const wx=this.cx*CHUNK_SIZE+x,wz=this.cz*CHUNK_SIZE+z;
+      const wx=ox+x,wz=oz+z;
       heights[x*CHUNK_SIZE+z]=getTerrainHeight(wx,wz);
       biomes[x*CHUNK_SIZE+z]=getBiomeRaw(wx,wz,heights[x*CHUNK_SIZE+z]);
     }
+    // Pre-compute trees that affect this chunk (including border)
+    const trees=[];
+    for(let tx=-3;tx<CHUNK_SIZE+3;tx++)for(let tz=-3;tz<CHUNK_SIZE+3;tz++){
+      const wx=ox+tx,wz=oz+tz;
+      const t=getTreeAt(wx,wz);
+      if(t)trees.push({x:wx,z:wz,h:t.h,trunkH:t.trunkH,canopyR:t.canopyR});
+    }
+    // Generate blocks
     for(let x=0;x<CHUNK_SIZE;x++)for(let z=0;z<CHUNK_SIZE;z++){
-      const wx=this.cx*CHUNK_SIZE+x,wz=this.cz*CHUNK_SIZE+z;
+      const wx=ox+x,wz=oz+z;
       const h=heights[x*CHUNK_SIZE+z],biome=biomes[x*CHUNK_SIZE+z];
+      // Check if this column has a tree trunk
+      let trunkTop=-1;
+      for(const t of trees){if(t.x===wx&&t.z===wz){trunkTop=t.h+t.trunkH;break;}}
       for(let y=0;y<CHUNK_HEIGHT;y++){
         let b;
         const ov=getOverride(wx,y,wz);
         if(ov!==undefined){b=ov;}
-        else{const tb=isTreeBlock(wx,y,wz);if(tb)b=tb;
-          else if(y===0)b=B.BEDROCK;
-          else if(y<=3){const r=hash3d(wx,y,wz,WSEED+70000);b=r<(y)*0.3?B.BEDROCK:B.STONE;}
-          else if(y>h){b=(y<=SEA_LEVEL)?B.WATER:B.AIR;}
-          else if(isCave(wx,y,wz))b=B.AIR;
-          else if(y===h){
-            if(biome===3||biome===4||biome===5)b=B.SAND;
-            else if(biome===7)b=B.SNOW;
-            else if(biome===6)b=B.STONE;
-            else b=B.GRASS;
+        else if(y===0)b=B.BEDROCK;
+        else if(y<=3){const r=hash3d(wx,y,wz,WSEED+70000);b=r<y*0.3?B.BEDROCK:B.STONE;}
+        else if(y>h){b=(y<=SEA_LEVEL)?B.WATER:B.AIR;}
+        else if(isCave(wx,y,wz))b=B.AIR;
+        else if(y===h){
+          if(biome===3||biome===4||biome===5)b=B.SAND;
+          else if(biome===7)b=B.SNOW;
+          else if(biome===6)b=B.STONE;
+          else b=B.GRASS;
+        }
+        else if(y>=h-3){b=(biome===3||biome===4||biome===5)?B.SAND:B.DIRT;}
+        else{const ore=getOre(wx,y,wz);b=ore||B.STONE;}
+        // Override with tree blocks
+        if(b!==B.WATER){
+          for(const t of trees){
+            const dx=wx-t.x,dz=wz-t.z;
+            if(y>=t.h&&y<t.h+t.trunkH&&dx===0&&dz===0){b=B.WOOD;break;}
+            const dy=y-(t.h+t.trunkH-1);
+            if(dx*dx+dy*dy*1.3+dz*dz<=t.canopyR*t.canopyR&&y>=t.h+t.trunkH-2&&b===B.AIR){b=B.LEAVES;break;}
           }
-          else if(y>=h-3){b=(biome===3||biome===4||biome===5)?B.SAND:B.DIRT;}
-          else{const ore=getOre(wx,y,wz);b=ore||B.STONE;}
         }
         this.blocks[this.idx(x,y,z)]=b;
       }
