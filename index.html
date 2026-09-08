@@ -54,7 +54,7 @@ canvas{display:block}
 // 1. CONSTANTS AND BLOCK DEFINITIONS
 // ============================================================
 const CHUNK_SIZE = 16, CHUNK_HEIGHT = 96, SEA_LEVEL = 48;
-const RENDER_DISTANCE = 8, MAX_GEN_PER_FRAME = 5;
+const RENDER_DISTANCE = 6, MAX_GEN_PER_FRAME = 8;
 const DAY_LENGTH = 240;
 const PW = 0.6, PH = 1.8, P_EYE = 1.62;
 const GRAVITY = -20, JUMP_VEL = 8, WALK_SPD = 4.5, SPRINT_SPD = 6.75;
@@ -279,8 +279,8 @@ function getTerrainHeight(wx,wz){
 function isCave(x,y,z){
   if(y<=1||y>=CHUNK_HEIGHT-4)return false;
   const depthFactor=Math.max(0,1-(y/CHUNK_HEIGHT)*0.6);
-  const c1=noise3d(x*0.04,y*0.05,z*0.04,WSEED+10000,3);
-  const c2=noise3d(x*0.035,y*0.045,z*0.035,WSEED+20000,3);
+  const c1=noise3d(x*0.04,y*0.05,z*0.04,WSEED+10000,2);
+  const c2=noise3d(x*0.035,y*0.045,z*0.035,WSEED+20000,2);
   const tunnel=Math.abs(c1)<0.05+depthFactor*0.03&&Math.abs(c2)<0.05+depthFactor*0.03;
   const cavern=noise3d(x*0.02,y*0.025,z*0.02,WSEED+30000,2);
   return tunnel||cavern>0.78-depthFactor*0.1;
@@ -300,7 +300,7 @@ function getTreeAt(wx,wz){
   const biome=getBiome(wx,wz);
   if(biome===3||biome===5||biome===7)return null; // no trees in desert/ocean/snow
   const r=hash2d(wx,wz,WSEED+60000);
-  let density=biome===2?0.12:biome===1?0.06:0.02;
+  let density=biome===2?0.1:biome===1?0.025:0.015;
   if(r>density)return null;
   const treeR=hash2d(wx,wz,WSEED+61000);
   const trunkH=biome===2?6+Math.floor(treeR*4):4+Math.floor(treeR*3);
@@ -990,17 +990,18 @@ class Mob{constructor(type,x,y,z){this.type=type;this.x=x;this.y=y;this.z=z;this
       // Flee
       if(this.fleeT>0){this.fleeT-=dt;this.vx=-dx/dist*def.spd*2;this.vz=-dz/dist*def.spd*2;}
     }
-    // Move + collide (simplified)
+    // Move + collide
     let nx=this.x+this.vx*dt,nz=this.z+this.vz*dt;
-    if(!collidesMob(nx,this.y,nz))this.x=nx;
+    if(!collidesMob(nx,this.y,nz)){this.x=nx;this.z=nz;}
     let ny=this.y+this.vy*dt;
-    if(collidesMob(this.x,ny,this.z)){if(this.vy<0){this.onGround=true;}
-      // Step up
-      if(collidesMob(this.x,ny+1,this.z))this.onGround=true;
-      else{ny+=1;this.vy=0;}
-      this.vy=0;}
-    else this.onGround=false;
-    if(!collidesMob(this.x,ny,this.z))this.y=ny;
+    if(collidesMob(this.x,ny,this.z)){
+      if(this.vy<0)this.onGround=true;
+      this.vy=0;
+    }else{this.y=ny;this.onGround=false;}
+    // Gentle step-up: try 0.5 block
+    if(this.onGround&&(collidesMob(nx,this.y,nz)||collidesMob(this.x+this.vx*dt,this.y,this.z+this.vz*dt))){
+      if(!collidesMob(this.x,this.y+0.5,this.z)){this.y+=0.5;this.vy=0;}
+    }
     // Walk animation
     if(Math.abs(this.vx)+Math.abs(this.vz)>0.3)this.walkT+=dt*8;
     const legs=this.mesh.userData.legs;if(legs){const sw=Math.sin(this.walkT)*0.4;legs[0].rotation.x=sw;legs[1].rotation.x=-sw;legs[2].rotation.x=-sw;legs[3].rotation.x=sw;}
@@ -1028,7 +1029,7 @@ class Mob{constructor(type,x,y,z){this.type=type;this.x=x;this.y=y;this.z=z;this
   despawn(){scene.remove(this.mesh);const i=mobs.indexOf(this);if(i>=0)mobs.splice(i,1);}
 }
 function distToPlayer(x,y,z){return Math.sqrt((x-player.x)**2+(y-player.y)**2+(z-player.z)**2);}
-function collidesMob(x,y,z){const hw=0.3;for(let bx=Math.floor(x-hw);bx<=Math.floor(x+hw);bx++)for(let by=Math.floor(y);by<=Math.floor(y+1.8);by++)for(let bz=Math.floor(z-hw);bz<=Math.floor(z+hw);bz++){if(SOLID.has(getBlockFinal(bx,by,bz)))return true;}return false;}
+function collidesMob(x,y,z){const hw=0.3;for(let bx=Math.floor(x-hw);bx<=Math.floor(x+hw);bx++)for(let by=Math.floor(y);by<=Math.floor(y+1.6);by++)for(let bz=Math.floor(z-hw);bz<=Math.floor(z+hw);bz++){const b=getBlockFinal(bx,by,bz);if(b!==B.AIR&&b!==B.WATER&&b!==B.LEAVES&&b!==B.TORCH)return true;}return false;}
 function spawnMobs(){
   const pcx=Math.floor(player.x/CHUNK_SIZE),pcz=Math.floor(player.z/CHUNK_SIZE);
   // Passive spawn
