@@ -1,0 +1,14 @@
+{
+  "description": "Exact playable files before showcase save support. Historical capture hashes remain in evidence/snapshot.json.",
+  "base_commit": "84fc4e664fd56979896b7304050d6cadec67995d",
+  "files": {
+    "originals/astra.html": {
+      "bytes": 65964,
+      "sha256": "485afe06b5483b96ea61678afc9e8ce164847d182837aad496f99606df683422"
+    },
+    "originals/qwen.html": {
+      "bytes": 89551,
+      "sha256": "a5ce9750ffe33397aaa06318c19fb211fe31b613efb66e0b2eeb0798cc62ad7c"
+    }
+  }
+}
