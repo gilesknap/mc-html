@@ -7,9 +7,9 @@ A static showcase of three single-file Minecraft-style games built from the same
 - **Astra / Wildwood:** one continuous run, approximately 18 minutes, medium effort, as reported by the author. Includes implementation and verification within that run.
 - **Qwen / Voxel Craft:** `Qwen3.8-27B-UD-Q4_K_S.gguf`, run locally in pi.dev over several iterations and approximately four full 128K contexts, as reported by the author. Initially no agent internet access; `pi-web-access` was installed later.
 
-- **Claude / Voxel Craft:** one shot, **28m 22s and 210k tokens**, as reported by the author. Specific model version and token breakdown were not supplied.
+- **Claude / Voxel Craft:** one shot at medium effort, **28m 22s and 210k tokens**, as reported by the author. Specific model version and token breakdown were not supplied.
 
-The landing page includes playable links, actual browser captures, implementation observations, Qwen’s seven-commit timeline, and locally observed hardware. These runs used different tools and iteration budgets; this is a showcase, without a controlled performance or token-cost benchmark.
+The landing page includes playable links, short gameplay recordings with still-image fallbacks, implementation observations, Qwen’s seven-commit timeline, and locally observed hardware. These runs used different tools and iteration budgets; this is a showcase, without a controlled performance or token-cost benchmark.
 
 ## Files
 
@@ -28,7 +28,11 @@ evidence/                    Provenance, hashes, history, and source notes
 .nojekyll                     Static-hosting marker
 ```
 
-The pre-save games in `originals/` are standalone HTML files. The playable versions also load the shared save panel and their adapter from `showcase/`. Each game loads Three.js from a CDN. The landing page reports uncompressed original HTML sizes: Astra 65,964 bytes (64.4 KiB), Qwen 89,551 bytes (87.5 KiB), and Claude 132,939 bytes (129.8 KiB). These exclude showcase scripts and the CDN library. The landing page itself requires no CDN, build tools, npm, or JavaScript.
+The pre-save games in `originals/` are standalone HTML files. The playable versions also load the shared save panel and their adapter from `showcase/`. Each game loads Three.js from a CDN. The landing page reports uncompressed original HTML sizes: Astra 65,964 bytes (64.4 KiB), Qwen 89,551 bytes (87.5 KiB), and Claude 132,939 bytes (129.8 KiB). These exclude showcase scripts and the CDN library. The landing page requires no CDN, build tools, or runtime npm dependencies. A small script manages muted preview playback; still images and links work without JavaScript.
+
+## Gameplay previews
+
+Each card has a muted 12-second recording of its original game. Clips load and loop only while visible; pause controls, reduced-motion preferences, and data-saving preferences are respected. Images remain as no-JavaScript, loading, and decoding-error fallbacks. See [clip provenance and recording instructions](assets/clips/README.md).
 
 ## Browser saves
 

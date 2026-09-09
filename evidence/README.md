@@ -74,8 +74,14 @@ The comparison page is also checked at desktop and mobile widths, and all local 
 
 Claude's third contender was copied from `../mc-html-claude/index.html` without modifying that source. The exact file is preserved at [`originals/claude.html`](../originals/claude.html), with its hash and byte size in [`claude-snapshot.json`](claude-snapshot.json). Playable `claude/index.html` adds the same explicitly attributed save hooks as the other contenders.
 
-The supplied [`claude-notes.txt`](claude-notes.txt) reports 28m 22s and 210k tokens. The author separately confirmed one shot in conversation. The Claude model version, environment, and token accounting were not supplied; the page labels the model simply Claude and does not equate its token count with Qwen's context-window estimate.
+The supplied [`claude-notes.txt`](claude-notes.txt) reports 28m 22s and 210k tokens. The author separately confirmed one shot and medium reasoning effort in conversation. The Claude model version, environment, and token accounting were not supplied; the page labels the model simply Claude and does not equate its token count with Qwen's context-window estimate.
 
 Source inspection shows Three.js r160, 16 × 16 × 96 chunks, an eight-chunk render radius, main-thread generation and meshing budgets of 7 ms and 6 ms checked between chunks, sky/block flood fill across borders, shaped crafting, item durability, and textured passive/hostile mobs. These are source observations, not a standardized performance comparison.
 
 The new landing-page image is an actual 1440 × 900 Chromium capture of the untouched Claude file after entering the world, with software WebGL. Browser tests cover save/load across reloads, distant edits, entities, both crafting grids, durability, repeated loads, invalid imports, storage failures/conflicts, and resumed simulation. Landing-page tests cover the three-column desktop layout, mobile overflow, file sizes, downloads, and local links. Historical capture notes above remain scoped to Astra and Qwen.
+
+## Gameplay preview clips
+
+The landing cards now use 12-second muted recordings of the preserved originals, with the earlier PNG screenshots retained as fallbacks. All were captured at a 1280 × 720 browser viewport, recorded at 960 × 540, and encoded as 24 fps H.264 MP4 with no audio. The capture script waits for startup, then uses mouse turns and a brief forward walk through the original input handlers. It does not modify the game source or set player/world state. Startup footage is trimmed; gameplay is not sped up. Software WebGL performance and visible FPS counters are not controlled benchmarks.
+
+The clip files, hashes, sizes, and source versions are in [`preview-clips.json`](preview-clips.json). Recording instructions are in [`assets/clips/README.md`](../assets/clips/README.md). Claude's medium effort was confirmed by the author after its initial addition; the supplied timing/token note remains unchanged.

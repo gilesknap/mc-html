@@ -9,7 +9,8 @@
     "run": "One shot; confirmed in conversation",
     "duration": "28m 22s",
     "duration_seconds": 1702,
-    "tokens": "210k; token accounting not specified"
+    "tokens": "210k; token accounting not specified",
+    "reasoning_effort": "Medium; confirmed in conversation"
   },
   "note_source": "evidence/claude-notes.txt",
   "source_observations": {

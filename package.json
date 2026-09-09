@@ -1,7 +1,7 @@
 {
   "name": "two-worlds-showcase",
   "private": true,
-  "scripts": {"test": "node tests/saves.cjs"},
+  "scripts": {"test": "node tests/saves.cjs && node tests/previews.cjs", "test:previews": "node tests/previews.cjs"},
   "engines": {"node": ">=20"},
   "devDependencies": {"playwright": "1.63.0"}
 }

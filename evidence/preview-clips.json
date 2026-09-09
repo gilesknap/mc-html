@@ -1,0 +1,47 @@
+{
+  "captured_on": "2026-09-09",
+  "capture_script": "scripts/record-previews.cjs",
+  "browser": "Playwright Chromium with software WebGL (SwiftShader)",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "encoding": {
+    "container": "MP4",
+    "codec": "H.264",
+    "pixel_format": "yuv420p",
+    "width": 960,
+    "height": 540,
+    "fps": 24,
+    "duration_seconds": 12,
+    "audio": false,
+    "faststart": true
+  },
+  "method": "Original HTML pages, scripted relative mouse events through original handlers and a brief W-key walk. No game source or state edits. Startup trimmed; normal game timing, no speed adjustment. Illustrative footage, not an FPS benchmark.",
+  "clips": [
+    {
+      "game": "astra",
+      "path": "assets/clips/astra.mp4",
+      "bytes": 1173232,
+      "sha256": "de19bf9aeac65ea07c5dab796a96e91b48597a52000766059a74a383126ec728",
+      "source": "originals/astra.html",
+      "source_sha256": "485afe06b5483b96ea61678afc9e8ce164847d182837aad496f99606df683422"
+    },
+    {
+      "game": "qwen",
+      "path": "assets/clips/qwen.mp4",
+      "bytes": 1284386,
+      "sha256": "3775e73e03f0a18dc45fa8b0f1c8a12ec5620d882faf35ff9b7f10aa9e41efb9",
+      "source": "originals/qwen.html",
+      "source_sha256": "a5ce9750ffe33397aaa06318c19fb211fe31b613efb66e0b2eeb0798cc62ad7c"
+    },
+    {
+      "game": "claude",
+      "path": "assets/clips/claude.mp4",
+      "bytes": 848191,
+      "sha256": "dfe8ad7328333360728fff703fcf88551d05a82e6365c69e4db1e1b45f985b95",
+      "source": "originals/claude.html",
+      "source_sha256": "62b8e4a9fb3a629a0e270eaed2389fcdb514d6923d03b73e321941c758a31abf"
+    }
+  ]
+}

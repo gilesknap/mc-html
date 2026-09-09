@@ -2,7 +2,7 @@
 
 Added as the third contender on 9 September 2026, from `../mc-html-claude/index.html`.
 
-The author reports **one shot, 28 minutes 22 seconds, and 210k tokens**. The duration and token count come from the supplied `claude.readme.txt`, preserved in [evidence/claude-notes.txt](../evidence/claude-notes.txt); the one-shot description was confirmed in conversation. The specific Claude model, reasoning setting, token breakdown, and tool environment were not supplied. These figures are not standardized throughput or cost measurements.
+The author reports **one shot at medium effort, 28 minutes 22 seconds, and 210k tokens**. The duration and token count come from the supplied `claude.readme.txt`, preserved in [evidence/claude-notes.txt](../evidence/claude-notes.txt); the one-shot description and medium reasoning effort were confirmed in conversation. The specific Claude model, token breakdown, and tool environment were not supplied. These figures are not standardized throughput or cost measurements.
 
 The untouched single HTML file is preserved at [originals/claude.html](../originals/claude.html). It is **132,939 bytes (129.8 KiB)**, before showcase save support, excluding its Three.js CDN dependency. Its SHA-256 and source observations are in [evidence/claude-snapshot.json](../evidence/claude-snapshot.json) and the [original download manifest](../originals/manifest.json).
 
