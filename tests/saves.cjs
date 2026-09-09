@@ -18,7 +18,7 @@ async function main() {
       let relative = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
       if (relative.endsWith('/')) relative += 'index.html';
       const file = path.join(root, relative); assert(file.startsWith(root + path.sep));
-      res.setHeader('Content-Type', file.endsWith('.js') ? 'text/javascript' : file.endsWith('.html') ? 'text/html' : 'application/json');
+      res.setHeader('Content-Type', ({ '.js': 'text/javascript', '.html': 'text/html', '.mp4': 'video/mp4', '.png': 'image/png' })[path.extname(file)] || 'application/json');
       res.end(await fs.readFile(file));
     } catch { res.writeHead(404); res.end(); }
   });
