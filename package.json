@@ -1,0 +1,7 @@
+{
+  "name": "two-worlds-showcase",
+  "private": true,
+  "scripts": {"test": "node tests/saves.cjs"},
+  "engines": {"node": ">=20"},
+  "devDependencies": {"playwright": "1.63.0"}
+}

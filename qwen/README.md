@@ -1,3 +1,9 @@
+# Showcase save support
+
+`index.html` now loads the shared panel and a game-specific adapter, with one pause check in the animation loop. Press F6 for saves. This addition was implemented by Codex after the game runs described below; it is not part of their original delivery. See [save documentation](../showcase/README.md).
+
+The exact pre-save file is preserved at [`originals/qwen.html`](../originals/qwen.html), with its hash in [the pre-save manifest](../originals/manifest.json). The following account describes the historical capture, not the modified playable file.
+
 # Qwen / Voxel Craft
 
 An unchanged snapshot of `mc-html-home/index.html`, including its uncommitted working-tree improvements after `f598ceeab771066589079a79d14a6f7caf3b83fd`.

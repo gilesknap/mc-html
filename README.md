@@ -14,15 +14,23 @@ The landing page includes playable links, actual browser captures, implementatio
 ```text
 index.html                    Comparison landing page
 prompt.html / PROMPT.md        Full prompt, linked to the original Google Doc
-astra/index.html              Original Astra game, unchanged
-qwen/index.html               Current Qwen working-tree snapshot, unchanged
+astra/index.html              Astra game with minimal save hooks
+qwen/index.html               Qwen game with minimal save hooks
 assets/                       Browser screenshots
 evidence/                    Provenance, hashes, history, and source notes
 .github/workflows/pages.yml   Static GitHub Pages deployment
 .nojekyll                     Static-hosting marker
 ```
 
-Both games are standalone HTML files. Each loads Three.js from a CDN. The landing page itself requires no CDN, build tools, npm, or JavaScript.
+The pre-save games in `originals/` are standalone HTML files. The playable versions also load the shared save panel and their adapter from `showcase/`. Each game loads Three.js from a CDN. The landing page itself requires no CDN, build tools, npm, or JavaScript.
+
+## Browser saves
+
+Press **F6**, or release the mouse with Esc and click **Saves**, to pause and choose from five named checkpoints per game. Save, load, delete, export, and import are available. Saves belong to this site in this browser; export JSON to keep a backup or share a discovery. No account or server is required.
+
+Download the pre-save game files from the landing page, or use `originals/astra.html` and `originals/qwen.html`. Astra’s pre-save baseline already includes the subsequent movement, hotbar, compass, and recipe-discovery fixes in commit `84fc4e6`; it is distinct from the earlier September 8 capture.
+
+Static deployments must include `showcase/` and `originals/` alongside the existing game directories. Test dependencies are development-only.
 
 ## Local preview
 
@@ -106,7 +114,7 @@ The workflow assembles `_site/` from an explicit file list and uploads that arti
 
 ## Evidence and verification
 
-See [evidence/README.md](evidence/README.md) for sourcing and limitations, and [evidence/snapshot.json](evidence/snapshot.json) for hashes. Game code is intentionally preserved so the showcase does not quietly improve one contestant during presentation work.
+See [evidence/README.md](evidence/README.md) for sourcing and limitations, and [evidence/snapshot.json](evidence/snapshot.json) for hashes. Historical capture evidence is unchanged. Exact pre-save playable files are preserved in `originals/`, with a separate hash manifest. The playable pages now include explicitly attributed save support; see [showcase/README.md](showcase/README.md) for the hooks, save format, limits, and tests.
 
 ## License
 

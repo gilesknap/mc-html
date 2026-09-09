@@ -1306,7 +1306,6 @@ function updateDayNight(dt){
 let lastTime=0,fps=0,fpsCounter=0,fpsTime=0;
 function gameLoop(timestamp){
   requestAnimationFrame(gameLoop);
-  if(window.ShowcaseSaves?.paused){lastTime=timestamp;return;}
   const dt=Math.min((timestamp-lastTime)/1000,0.05);lastTime=timestamp;
   // FPS
   fpsCounter++;fpsTime+=dt;if(fpsTime>=1){fps=fpsCounter;fpsCounter=0;fpsTime=0;document.getElementById('fps').textContent='FPS: '+fps;}
@@ -1376,8 +1375,5 @@ updateHotbar();updateHearts();
 requestAnimationFrame(gameLoop);
 
 </script>
-<!-- Showcase save support; original snapshot: ../originals/qwen.html -->
-<script src="../showcase/saves.js"></script>
-<script src="../showcase/qwen-saves.js"></script>
 </body>
 </html>

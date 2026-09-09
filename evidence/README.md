@@ -1,5 +1,7 @@
 # Evidence and scope
 
+These notes and `snapshot.json` describe the historical capture, before the later Astra fixes and showcase save support. Current pre-save baselines are separately archived in [`originals/`](../originals/manifest.json); playable pages include the additions documented in [`showcase/`](../showcase/README.md).
+
 Captured on 8 September 2026. This directory supports the public comparison page without requiring local filesystem access.
 
 ## Author-reported run details
