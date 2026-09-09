@@ -68,3 +68,14 @@ Qwen’s historical notes report a 13-assertion Node VM harness with permissive 
 For this showcase, both unchanged game copies were launched in headless Chromium, their start controls were clicked, and screenshots were captured after approximately 17 seconds of play view. Neither produced a JavaScript page error during those captures. Screenshots were taken at 1440 × 900 with software WebGL, then displayed at smaller sizes on the landing page. Their visible FPS counters are incidental captures, not comparable hardware-accelerated performance results.
 
 The comparison page is also checked at desktop and mobile widths, and all local links and packaged files are validated. The full functional suite has not been run against both implementations. Firefox and real GPU performance have not been benchmarked here.
+
+
+## Claude added on 9 September 2026
+
+Claude's third contender was copied from `../mc-html-claude/index.html` without modifying that source. The exact file is preserved at [`originals/claude.html`](../originals/claude.html), with its hash and byte size in [`claude-snapshot.json`](claude-snapshot.json). Playable `claude/index.html` adds the same explicitly attributed save hooks as the other contenders.
+
+The supplied [`claude-notes.txt`](claude-notes.txt) reports 28m 22s and 210k tokens. The author separately confirmed one shot in conversation. The Claude model version, environment, and token accounting were not supplied; the page labels the model simply Claude and does not equate its token count with Qwen's context-window estimate.
+
+Source inspection shows Three.js r160, 16 × 16 × 96 chunks, an eight-chunk render radius, main-thread generation and meshing budgets of 7 ms and 6 ms checked between chunks, sky/block flood fill across borders, shaped crafting, item durability, and textured passive/hostile mobs. These are source observations, not a standardized performance comparison.
+
+The new landing-page image is an actual 1440 × 900 Chromium capture of the untouched Claude file after entering the world, with software WebGL. Browser tests cover save/load across reloads, distant edits, entities, both crafting grids, durability, repeated loads, invalid imports, storage failures/conflicts, and resumed simulation. Landing-page tests cover the three-column desktop layout, mobile overflow, file sizes, downloads, and local links. Historical capture notes above remain scoped to Astra and Qwen.

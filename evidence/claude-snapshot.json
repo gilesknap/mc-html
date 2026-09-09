@@ -1,0 +1,26 @@
+{
+  "captured_on": "2026-09-09",
+  "source": "../mc-html-claude/index.html",
+  "preserved_file": "originals/claude.html",
+  "bytes": 132939,
+  "sha256": "62b8e4a9fb3a629a0e270eaed2389fcdb514d6923d03b73e321941c758a31abf",
+  "author_reported": {
+    "model": "Claude (specific model version not supplied)",
+    "run": "One shot; confirmed in conversation",
+    "duration": "28m 22s",
+    "duration_seconds": 1702,
+    "tokens": "210k; token accounting not specified"
+  },
+  "note_source": "evidence/claude-notes.txt",
+  "source_observations": {
+    "three_js": "0.160.0",
+    "chunk_size": 16,
+    "world_height": 96,
+    "render_distance": 8,
+    "world_seed": 1337,
+    "generation": "Main-thread chunk queue; 7 ms budget checked between chunks",
+    "meshing": "6 ms budget checked between chunks; cardinal neighbors must be generated",
+    "lighting": "Sky and block flood fill across chunk boundaries; shader day/night scaling",
+    "tools": "Per-item durability and shaped crafting recipes"
+  }
+}

@@ -1,8 +1,8 @@
 # Showcase save support
 
-Added by Codex after the showcased game runs. This is an investigation aid shared by both games, not part of either model's original delivery. It does not repair their gameplay rules, generation, rendering, crafting, or AI.
+Added by Codex after the showcased game runs. This is an investigation aid shared by all three games, not part of either model's original delivery. It does not repair their gameplay rules, generation, rendering, crafting, or AI.
 
-The playable HTML files have only an animation-loop pause check and two external script tags, plus an attribution comment. Classic scripts let each adapter access the original top-level lexical state without reorganizing the game source. `saves.js` owns the interface and persistence; `astra-saves.js` and `qwen-saves.js` capture and reconstruct the different game representations.
+The playable HTML files have only an animation-loop pause check and two external script tags, plus an attribution comment. Classic scripts let each adapter access the original top-level lexical state without reorganizing the game source. `saves.js` owns the interface and persistence; `astra-saves.js`, `qwen-saves.js`, and `claude-saves.js` capture and reconstruct the different game representations.
 
 ## Use
 
@@ -24,11 +24,15 @@ Terrain, meshes, lighting, and interface elements are rebuilt from data. Loading
 
 Transient particles, sounds, input holds, and partially completed mining swings are discarded. The games use `Math.random()` for runtime behavior, so this is a resumable checkpoint, not deterministic replay. Loaded entities outside the rebuilt neighborhood continue under the original streaming rules. Existing crafting, collision, rendering, and despawning quirks remain observable. Saves are validated against this adapter version; incompatible seeds, source revisions, game IDs, malformed fields, and oversized imports are rejected before restoration. There is no migration between games or source revisions.
 
+Claude’s adapter also restores tool durability, both crafting grids, mob targets and fleeing origins. It preserves the UI’s existing array references so restored slots remain interactive, suppresses duplicate passive spawns, and reconstructs nearby dropped stacks separately instead of merging them during load. Its simulation runs while the original inventory is open; the shared save modal explicitly pauses it.
+
+The internal save format and database name retain the original `two-worlds` identifiers for compatibility with existing Astra and Qwen saves. Claude uses its own game ID and slots.
+
 ## Authorship and evidence
 
-The landing page's HTML downloads point to exact pre-save files in `originals/`. `originals/manifest.json` identifies the baseline commit and hashes. Astra's baseline includes the repository's later controls, compass, and recipe-discovery fixes (`84fc4e6`); its hash therefore differs from the original September 8 capture. `evidence/snapshot.json` retains the historical hashes without rewriting them to describe modified files.
+The landing page's HTML downloads point to exact pre-save files in `originals/`. `originals/manifest.json` identifies the baseline commit and hashes. Astra's baseline includes the repository's later controls, compass, and recipe-discovery fixes (`84fc4e6`); its hash therefore differs from the original September 8 capture. Claude’s untouched source and author-reported run details are recorded separately in `evidence/claude-snapshot.json`. `evidence/snapshot.json` retains the historical hashes without rewriting them to describe modified files.
 
-Deploy `showcase/` and `originals/` together with `astra/` and `qwen/`. The site remains static and needs no runtime npm dependencies or build step.
+Deploy `showcase/` and `originals/` together with `astra/`, `qwen/`, and `claude/`. The site remains static and needs no runtime npm dependencies or build step.
 
 ## Verification
 
@@ -40,4 +44,4 @@ npx playwright install --with-deps chromium
 npm test
 ```
 
-The browser suite serves the repo locally and exercises both real games with Three.js and software WebGL. It checks save/load across reload, named slots, terrain edits, inventory and crafting, mobs and drops, repeated restoration, pause/input isolation, export/import, incompatible/corrupt files, storage failure, and preserved snapshot hashes. The games load Three.js from their original CDN, so the test requires network access. Test screenshots go to ignored `test-artifacts/`.
+The browser suite serves the repo locally and exercises all three real games with Three.js and software WebGL. It checks save/load across reload, named slots, terrain edits, inventory and crafting, mobs and drops, repeated restoration, pause/input isolation, export/import, incompatible/corrupt files, storage failure, tool durability, retained crafting UI references, and preserved snapshot hashes. The suite also checks three desktop columns, mobile page overflow, exact displayed file sizes, downloads, and local links. The games load Three.js from their original CDN, so the test requires network access. Test screenshots go to ignored `test-artifacts/`.

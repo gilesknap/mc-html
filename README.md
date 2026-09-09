@@ -1,11 +1,13 @@
-# Two Worlds — Astra × Qwen
+# Three Worlds — Astra × Qwen × Claude
 
-A static showcase of two single-file Minecraft-style games built from the same prompt.
+A static showcase of three single-file Minecraft-style games built from the same prompt.
 
 [Open the showcase on GitHub Pages](https://gilesknap.github.io/mc-html/).
 
 - **Astra / Wildwood:** one continuous run, approximately 18 minutes, medium effort, as reported by the author. Includes implementation and verification within that run.
 - **Qwen / Voxel Craft:** `Qwen3.8-27B-UD-Q4_K_S.gguf`, run locally in pi.dev over several iterations and approximately four full 128K contexts, as reported by the author. Initially no agent internet access; `pi-web-access` was installed later.
+
+- **Claude / Voxel Craft:** one shot, **28m 22s and 210k tokens**, as reported by the author. Specific model version and token breakdown were not supplied.
 
 The landing page includes playable links, actual browser captures, implementation observations, Qwen’s seven-commit timeline, and locally observed hardware. These runs used different tools and iteration budgets; this is a showcase, without a controlled performance or token-cost benchmark.
 
@@ -16,21 +18,25 @@ index.html                    Comparison landing page
 prompt.html / PROMPT.md        Full prompt, linked to the original Google Doc
 astra/index.html              Astra game with minimal save hooks
 qwen/index.html               Qwen game with minimal save hooks
+claude/index.html             Claude game with minimal save hooks
+originals/                    Untouched pre-save HTML downloads and hashes
+showcase/                     Shared save panel and three game adapters
+tests/                        Browser save and landing-page checks
 assets/                       Browser screenshots
 evidence/                    Provenance, hashes, history, and source notes
 .github/workflows/pages.yml   Static GitHub Pages deployment
 .nojekyll                     Static-hosting marker
 ```
 
-The pre-save games in `originals/` are standalone HTML files. The playable versions also load the shared save panel and their adapter from `showcase/`. Each game loads Three.js from a CDN. The landing page itself requires no CDN, build tools, npm, or JavaScript.
+The pre-save games in `originals/` are standalone HTML files. The playable versions also load the shared save panel and their adapter from `showcase/`. Each game loads Three.js from a CDN. The landing page reports uncompressed original HTML sizes: Astra 65,964 bytes (64.4 KiB), Qwen 89,551 bytes (87.5 KiB), and Claude 132,939 bytes (129.8 KiB). These exclude showcase scripts and the CDN library. The landing page itself requires no CDN, build tools, npm, or JavaScript.
 
 ## Browser saves
 
 Press **F6**, or release the mouse with Esc and click **Saves**, to pause and choose from five named checkpoints per game. Save, load, delete, export, and import are available. Saves belong to this site in this browser; export JSON to keep a backup or share a discovery. No account or server is required.
 
-Download the pre-save game files from the landing page, or use `originals/astra.html` and `originals/qwen.html`. Astra’s pre-save baseline already includes the subsequent movement, hotbar, compass, and recipe-discovery fixes in commit `84fc4e6`; it is distinct from the earlier September 8 capture.
+Download the pre-save game files from the landing page, or use `originals/astra.html`, `originals/qwen.html`, and `originals/claude.html`. Astra’s pre-save baseline already includes the subsequent movement, hotbar, compass, and recipe-discovery fixes in commit `84fc4e6`; it is distinct from the earlier September 8 capture.
 
-Static deployments must include `showcase/` and `originals/` alongside the existing game directories. Test dependencies are development-only.
+Static deployments must include `showcase/` and `originals/` alongside all three game directories. Test dependencies are development-only.
 
 ## Local preview
 
@@ -42,7 +48,15 @@ python3 -m http.server 8000
 
 Open `http://localhost:8000/`. Game links open new tabs so pointer lock and GPU rendering work directly. The games target desktop keyboard and mouse input.
 
-## Preserve Qwen’s history when moving to GitHub
+## Testing
+
+With Node 20+, run `npm ci`, `npx playwright install --with-deps chromium`, then `npm test`. The shared suite exercises all three real games and checks the landing-page layout, original file sizes, downloads, and local links. See [showcase/README.md](showcase/README.md) for coverage.
+
+## Historical migration instructions
+
+The following instructions record the original two-game showcase assembly. This repository now also includes Claude and save support; current static deployments must include `claude/`, `showcase/`, and `originals/`.
+
+### Preserve Qwen’s history when moving to GitHub
 
 The intended repository base is the sibling **`mc-html-home`**. This showcase directory was not initialized as a new Git repository. The original repo has not been modified, committed, pushed, or published by this task.
 
@@ -92,7 +106,7 @@ git log --follow -- qwen/index.html
 
 This keeps all original Qwen commits. Avoid copying a `.git` directory from one workspace into another or starting a replacement history.
 
-## GitHub and GitHub Pages
+### GitHub and GitHub Pages (original plan)
 
 Choose a GitHub owner and repository name when ready to publish; none is assumed here. The included workflow deploys through **GitHub Actions** to GitHub Pages, without a separate generated `gh-pages` branch.
 

@@ -9,6 +9,13 @@
     "originals/qwen.html": {
       "bytes": 89551,
       "sha256": "a5ce9750ffe33397aaa06318c19fb211fe31b613efb66e0b2eeb0798cc62ad7c"
+    },
+    "originals/claude.html": {
+      "bytes": 132939,
+      "sha256": "62b8e4a9fb3a629a0e270eaed2389fcdb514d6923d03b73e321941c758a31abf",
+      "source": "../mc-html-claude/index.html",
+      "added_on": "2026-09-09"
     }
-  }
+  },
+  "base_commit_note": "The baseline commit applies to Astra and Qwen. Claude was imported later from the source listed in its file entry."
 }
