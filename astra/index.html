@@ -149,8 +149,32 @@ let itemNameTimer=0;function toast(msg){$('toast').textContent=msg;$('toast').st
 // ── First-person player, collision, gravity and health ─────────────────────────
 const spawnHeight=terrain(0,0).h+1,player={pos:new THREE.Vector3(.5,spawnHeight,.5),vel:new THREE.Vector3(),ground:false,hp:20,hurt:0,regen:0,fallY:spawnHeight};let yaw=.4,pitch=-.12,keys=new Set(),walkPhase=0,turnSway=0;
 function overlaps(pos,w=.3,h=1.8){for(let x=Math.floor(pos.x-w);x<=Math.floor(pos.x+w-.001);x++)for(let z=Math.floor(pos.z-w);z<=Math.floor(pos.z+w-.001);z++)for(let y=Math.floor(pos.y+.001);y<=Math.floor(pos.y+h-.001);y++)if(solid(get(x,y,z)))return true;return false;}
-function moveBody(body,dt,w=.3,h=1.8,step=false){let grounded=body.ground,stepped=false;body.ground=false;for(let axis of ['x','z','y']){let amount=body.vel[axis]*dt,parts=Math.max(1,Math.ceil(Math.abs(amount)/.2));for(let i=0;i<parts;i++){let old=body.pos[axis];body.pos[axis]+=amount/parts;if(!loadedAt(body.pos.x,body.pos.z)){body.pos[axis]=old;body.vel[axis]=0;break;}if(overlaps(body.pos,w,h)){if(axis!=='y'&&step&&grounded&&!stepped&&body.vel.y<=0){const baseY=body.pos.y,advanced=body.pos[axis],rise=Math.floor(baseY+.001)+1-baseY;let clear=rise>0&&rise<=1.001;body.pos[axis]=old;for(let lift=.1;clear&&lift<rise;lift+=.1){body.pos.y=baseY+lift;if(overlaps(body.pos,w,h))clear=false;}body.pos.y=baseY+rise;if(overlaps(body.pos,w,h))clear=false;body.pos[axis]=advanced;if(clear&&!overlaps(body.pos,w,h)){stepped=true;continue;}body.pos.y=baseY;}body.pos[axis]=old;if(axis==='y'&&amount<0)body.ground=true;body.vel[axis]=0;break;}}}}
-function updatePlayer(dt){if(dead||ui||document.pointerLockElement!==renderer.domElement)return;let f=(keys.has('KeyW')?1:0)-(keys.has('KeyS')?1:0),s=(keys.has('KeyD')?1:0)-(keys.has('KeyA')?1:0),len=Math.hypot(f,s)||1,sprint=keys.has('ShiftLeft')||keys.has('ControlLeft')||keys.has('ShiftRight')||keys.has('ControlRight'),inWater=get(player.pos.x,player.pos.y+1,player.pos.z)===WATER,speed=(sprint?6.6:4.4)*(inWater?.58:1);player.vel.x=(s*Math.cos(yaw)-f*Math.sin(yaw))/len*speed;player.vel.z=(-f*Math.cos(yaw)-s*Math.sin(yaw))/len*speed;if(keys.has('Space')&&(player.ground||inWater)){player.vel.y=inWater?4:8.2;player.ground=false;}player.vel.y-=dt*(inWater?7:23);player.vel.y=Math.max(player.vel.y,-35);let wasGround=player.ground;if(wasGround)player.fallY=player.pos.y;player.fallY=Math.max(player.fallY,player.pos.y);moveBody(player,dt,.3,1.8,!inWater);if(player.ground&&!wasGround){let fall=player.fallY-player.pos.y;if(fall>3&&!inWater)hurt(Math.floor(fall-3));player.fallY=player.pos.y;}if(inWater)player.fallY=player.pos.y;if(f||s){walkPhase+=dt*(sprint?12:9);if(player.ground&&Math.floor(walkPhase/Math.PI)!==footstep){footstep=Math.floor(walkPhase/Math.PI);sound(80,.035,'triangle',.025);}}if(player.pos.y<-8)hurt(20);}
+const JUMP_SPEED=8.2,PLAYER_GRAVITY=23;
+function moveBody(body,dt,w=.3,h=1.8,step=false){
+ let grounded=body.ground,stepped=false;body.ground=false;
+ for(let axis of ['x','z','y']){
+  let amount=body.vel[axis]*dt,parts=Math.max(1,Math.ceil(Math.abs(amount)/.2));
+  for(let i=0;i<parts;i++){
+   let old=body.pos[axis];body.pos[axis]+=amount/parts;
+   if(!loadedAt(body.pos.x,body.pos.z)){body.pos[axis]=old;body.vel[axis]=0;break;}
+   if(overlaps(body.pos,w,h)){
+    if(axis!=='y'&&step&&grounded&&!stepped&&body.vel.y<=0){
+     const baseY=body.pos.y,advanced=body.pos[axis],rise=Math.floor(baseY+.001)+1-baseY;
+     let clear=rise>0&&rise<=1.001;body.pos[axis]=old;
+     for(let lift=.1;clear&&lift<rise;lift+=.1){body.pos.y=baseY+lift;if(overlaps(body.pos,w,h))clear=false;}
+     body.pos.y=baseY+rise;if(overlaps(body.pos,w,h))clear=false;
+     body.pos[axis]=advanced;clear=clear&&!overlaps(body.pos,w,h);
+     if(clear&&step!=='jump'){stepped=true;continue;}
+     // Restore the clearance probe; autojump follows the same arc as Space.
+     body.pos.y=baseY;
+     if(clear){body.vel.y=JUMP_SPEED-PLAYER_GRAVITY*dt;stepped=true;}
+    }
+    body.pos[axis]=old;if(axis==='y'&&amount<0)body.ground=true;body.vel[axis]=0;break;
+   }
+  }
+ }
+}
+function updatePlayer(dt){if(dead||ui||document.pointerLockElement!==renderer.domElement)return;let f=(keys.has('KeyW')?1:0)-(keys.has('KeyS')?1:0),s=(keys.has('KeyD')?1:0)-(keys.has('KeyA')?1:0),len=Math.hypot(f,s)||1,sprint=keys.has('ShiftLeft')||keys.has('ControlLeft')||keys.has('ShiftRight')||keys.has('ControlRight'),inWater=get(player.pos.x,player.pos.y+1,player.pos.z)===WATER,speed=(sprint?6.6:4.4)*(inWater?.58:1);player.vel.x=(s*Math.cos(yaw)-f*Math.sin(yaw))/len*speed;player.vel.z=(-f*Math.cos(yaw)-s*Math.sin(yaw))/len*speed;if(keys.has('Space')&&(player.ground||inWater)){player.vel.y=inWater?4:JUMP_SPEED;player.ground=false;}player.vel.y-=dt*(inWater?7:PLAYER_GRAVITY);player.vel.y=Math.max(player.vel.y,-35);let wasGround=player.ground;if(wasGround)player.fallY=player.pos.y;player.fallY=Math.max(player.fallY,player.pos.y);moveBody(player,dt,.3,1.8,inWater?false:'jump');if(player.ground&&!wasGround){let fall=player.fallY-player.pos.y;if(fall>3&&!inWater)hurt(Math.floor(fall-3));player.fallY=player.pos.y;}if(inWater)player.fallY=player.pos.y;if(f||s){walkPhase+=dt*(sprint?12:9);if(player.ground&&Math.floor(walkPhase/Math.PI)!==footstep){footstep=Math.floor(walkPhase/Math.PI);sound(80,.035,'triangle',.025);}}if(player.pos.y<-8)hurt(20);}
 let footstep=0;function hearts(){$('hearts').innerHTML=Array.from({length:10},(_,i)=>'<span style="opacity:'+(player.hp>=i*2+2?1:player.hp>i*2?.55:.19)+'">♥</span>').join('');}
 function hurt(n){if(dead||player.hurt>0)return;player.hp=Math.max(0,player.hp-n);player.hurt=.8;player.regen=0;hearts();sound(85,.18,'sawtooth',.07);$('damage').style.opacity=.65;if(player.hp<=0){dead=true;document.exitPointerLock();$('death').classList.remove('hidden');keys.clear();mining=false;}}
 function respawn(){player.pos.set(.5,spawnHeight,.5);player.vel.set(0,0,0);player.hp=20;player.fallY=spawnHeight;player.hurt=2;dead=false;$('death').classList.add('hidden');hearts();refreshChunks();lock();}
